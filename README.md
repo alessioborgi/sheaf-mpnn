@@ -18,7 +18,7 @@ cd pytorch-SheafNeuralNetworks
 uv sync && source .venv/bin/activate
 
 # 10-fold CV on Cora with the best-known config (data downloaded automatically)
-python -m exp.run --preset cora
+sheaf run --preset cora
 ```
 
 Use the library directly:
@@ -103,16 +103,26 @@ All variants share the same `encoder → NSD layers → decoder` architecture; o
 Every dataset has a built-in preset. Any field can still be overridden:
 
 ```bash
-python -m exp.run --preset cora
-python -m exp.run --preset texas --model.variant orthogonal --model.stalk-dim 5
+sheaf run --preset cora
+sheaf run --preset texas --model.variant orthogonal --model.stalk-dim 5
 ```
 
-Run `python -m exp.run --help` for the full list of flags.
+Run `sheaf run --help` for the full list of flags. The legacy `python -m exp.run` invocation still works.
+
+### Splits
+
+Download the canonical Geom-GCN splits (done automatically on first run, but can be pre-fetched):
+
+```bash
+sheaf splits                          # all NPZ-split datasets
+sheaf splits --datasets cora texas    # specific datasets only
+sheaf splits --source generate        # generate locally instead
+```
 
 ### Weights & Biases
 
 ```bash
-python -m exp.run --preset cora \
+sheaf run --preset cora \
     --wandb.enabled --wandb.entity your_entity --wandb.project nsd-cora
 ```
 
@@ -122,7 +132,7 @@ Sweeps are YAML-driven. Create a config file specifying the model, search space,
 Optuna settings, then run:
 
 ```bash
-python -m exp.sweeps.sweep --yaml-path sweep.yaml --preset cora
+sheaf sweep --yaml-path sweep.yaml --preset cora
 ```
 
 The sweep CLI only accepts `--yaml-path` and `--preset`. All other options (number of

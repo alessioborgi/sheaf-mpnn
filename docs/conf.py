@@ -17,8 +17,9 @@ sys.path.insert(0, os.path.join(_ROOT, "src"))
 # Resolve the GitHub repo slug for source/edit links and Pages URLs. In CI,
 # `GITHUB_REPOSITORY` is set automatically (e.g. "alessioborgi/pytorch-..."),
 # so the same config works for any fork without further edits.
-_REPO_SLUG = os.environ.get("GITHUB_REPOSITORY",
-                            "alessioborgi/pytorch-SheafNeuralNetworks")
+_REPO_SLUG = os.environ.get(
+    "GITHUB_REPOSITORY", "alessioborgi/pytorch-SheafNeuralNetworks"
+)
 _REPO_OWNER, _REPO_NAME = _REPO_SLUG.split("/", 1)
 _REPO_URL = f"https://github.com/{_REPO_SLUG}"
 _PAGES_URL = f"https://{_REPO_OWNER}.github.io/{_REPO_NAME}/"
@@ -139,6 +140,19 @@ copybutton_prompt_is_regexp = True
 # -- OpenGraph ---------------------------------------------------------------
 ogp_site_url = _PAGES_URL
 ogp_image = "_static/og-image.png"
+
+# -- Linkcheck configuration -------------------------------------------------
+linkcheck_ignore = [
+    # Ignore workflow files and repository blobs to avoid GitHub rate-limiting
+    rf"{_REPO_URL}/blob/.*",
+    r"https://github\.com/.*\.yml",
+]
+
+linkcheck_anchors_ignore_for_url = [
+    # PyTorch pages use JS/dynamic layouts rendering static anchor checks useless
+    r"https://docs\.pytorch\.org/.*",
+    r"https://pytorch\.org/.*",
+]
 
 # -- Misc --------------------------------------------------------------------
 nitpicky = False  # Toggle once docstrings are fully typed.

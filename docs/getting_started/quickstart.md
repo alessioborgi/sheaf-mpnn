@@ -15,7 +15,7 @@ conv = DiagonalNSDConv(in_channels=16, out_channels=16, d=4)
 h = conv(x, edge_index)               # shape: [10, 4 * 16]
 ```
 
-The `variant` argument selects the restriction-map family: `"diagonal"` ($d$ params/edge endpoint), `"general"` ($d^2$ params), `"orthogonal"` ($d(d-1)/2$ params, norm-preserving).
+The `variant` argument selects the restriction-map family: `"diagonal"` ($d$ params/edge endpoint), `"general"` ($d^2$ params), `"orthogonal"` ($\tfrac{d(d-1)}{2}$ params, norm-preserving).
 
 ## Run a preset
 

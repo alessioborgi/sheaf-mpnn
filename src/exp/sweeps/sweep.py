@@ -7,8 +7,14 @@
 
 Usage::
 
+    # Via the unified CLI (recommended):
+    sheaf sweep --yaml-path nsd_cora.yaml --preset cora
+
+    # Direct module invocation:
     python -m exp.sweeps.sweep --yaml-path nsd_cora.yaml --preset cora
-    python -m exp.sweeps.sweep --yaml-path nsd_cora.yaml
+
+    # Without a preset (uses config defaults):
+    sheaf sweep --yaml-path nsd_cora.yaml
 
 Example YAML:
 
@@ -50,6 +56,7 @@ import tyro
 import yaml
 from lightning import Trainer
 from lightning.pytorch.callbacks import EarlyStopping
+from rich.console import Console
 
 from exp.config import (
     Config,
@@ -70,6 +77,8 @@ from exp.sweeps.models import (
 )
 from sheaf_mpnn.utils import setup_torch
 
+_console = Console()
+
 _PruningCb: type | None = None
 try:
     from optuna_integration import PyTorchLightningPruningCallback as _PruningCb
@@ -81,7 +90,6 @@ except ImportError:
     except ImportError:
         pass
 
-# Fields belonging to each config section — used to route sampled params.
 _MODEL_FIELDS: frozenset[str] = frozenset(
     f.name for f in dataclasses.fields(ModelConfig)
 )
@@ -219,7 +227,7 @@ def _make_wandb_callbacks(base_cfg: Config, sweep_cfg: SweepConfig) -> list:
     try:
         from optuna_integration.wandb import WeightsAndBiasesCallback
     except ImportError:
-        print(
+        _console.print(
             "optuna-integration[wandb] not installed; "
             "skipping WandB logging for Optuna study."
         )
@@ -241,22 +249,15 @@ def _make_wandb_callbacks(base_cfg: Config, sweep_cfg: SweepConfig) -> list:
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# Core logic (testable without CLI)
 # ---------------------------------------------------------------------------
 
 
-def main(
+def sweep(
     yaml_path: Path,
     preset: str | None = None,
 ) -> None:
-    r"""Run a YAML-driven Optuna hyperparameter sweep.
-
-    Args:
-        yaml_path: Path to a YAML file describing the model, search space, and
-            Optuna config. See module docstring for the expected format.
-        preset: Named preset to use as base config (dataset, folds, optimiser
-            defaults). When omitted, Config() defaults are used.
-    """
+    """Run a YAML-driven Optuna hyperparameter sweep."""
     raw = yaml.safe_load(yaml_path.read_text())
     sweep_cfg = SweepConfig.model_validate(raw)
     base_cfg = preset_registry.get_or_default(preset)
@@ -296,16 +297,16 @@ def main(
     mean = best.user_attrs.get("val_mean", best.value)
     std = best.user_attrs.get("val_std", 0.0)
     n = best.user_attrs.get("n_seeds", sweep_cfg.config.n_seeds_per_trial)
-    print(f"\nBest trial #{best.number}")
-    print(f"  val metric : {mean:.4f} +/- {std:.4f}  (n={n} seeds)")
+    _console.print(f"\n[bold]Best trial #{best.number}[/bold]")
+    _console.print(f"  val metric : {mean:.4f} +/- {std:.4f}  (n={n} seeds)")
     if sweep_cfg.config.std_weight > 0:
-        print(
+        _console.print(
             f"  objective  : {best.value:.4f}"
             f"  (= mean - {sweep_cfg.config.std_weight}*std)"
         )
-    print("  hyperparameters:")
+    _console.print("  hyperparameters:")
     for k, v in best.params.items():
-        print(f"    {k}: {v}")
+        _console.print(f"    {k}: {v}")
 
     _save_best_config(sweep_cfg, base_cfg, best.params)
 
@@ -321,7 +322,26 @@ def _save_best_config(
 
     output = {"model": sweep_cfg.model, "best_params": best_params}
     yaml.dump(output, Path(filename).open("w"), default_flow_style=False)
-    print(f"\nBest config saved to {filename}")
+    _console.print(f"\nBest config saved to [cyan]{filename}[/cyan]")
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
+# ---------------------------------------------------------------------------
+
+
+def main(
+    yaml_path: Path,
+    preset: str | None = None,
+) -> None:
+    r"""Entry point for ``python -m exp.sweeps.sweep``.
+
+    Args:
+        yaml_path: Path to a YAML file describing the model, search space, and
+            Optuna config. See module docstring for the expected format.
+        preset: Named preset to use as base config.
+    """
+    sweep(yaml_path=yaml_path, preset=preset)
 
 
 if __name__ == "__main__":

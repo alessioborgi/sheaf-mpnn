@@ -1,5 +1,20 @@
 # Experiments
 
+## The `sheaf` CLI
+
+All experiment entry points are unified under the `sheaf` command:
+
+```bash
+sheaf run     [--preset <name>] [config overrides...]   # cross-validation
+sheaf splits  [--datasets ...] [--source canonical|generate]  # split management
+sheaf sweep   --yaml-path <file> [--preset <name>]      # hyperparameter sweep
+```
+
+Add `--help` after any subcommand for the full list of flags. The legacy
+`python -m exp.run` / `python -m exp.sweeps.sweep` invocations still work.
+
+---
+
 `exp.run` orchestrates **10-fold cross-validation**: a fresh model and
 datamodule are instantiated per fold with a deterministic per-fold seed,
 trained to convergence, and evaluated on the held-out test split. Final
@@ -46,13 +61,13 @@ storing the hyperparameters found by the sweep. Selecting one with
 overridden on the same command line:
 
 ```bash
-python -m exp.run --preset cora --model.hidden_dim 128
+sheaf run --preset cora --model.hidden-dim 128
 ```
 
 ## Concrete example: full run with WandB logging
 
 ```bash
-python -m exp.run \
+sheaf run \
     --preset cora \
     --wandb.project my-project \
     --wandb.entity my-team \
@@ -74,18 +89,45 @@ $$
 This discards underperforming hyperparameter configurations early,
 concentrating budget on promising regions of the search space.
 
-Sweeps can be parallelised across machines by pointing every worker at the
-same SQLite study file:
+Sweeps are YAML-driven; create a config file then run:
 
 ```bash
-# Machine 1 (creates the study)
-python -m exp.sweep --dataset cora --study-name cora_sweep \
-    --storage sqlite:///sweeps/cora.db --n-trials 50
-
-# Machine 2 ... N (join the same study)
-python -m exp.sweep --dataset cora --study-name cora_sweep \
-    --storage sqlite:///sweeps/cora.db --n-trials 50
+sheaf sweep --yaml-path sweep.yaml --preset cora
 ```
 
-Optuna handles concurrent writes to the SQLite backend with file locking;
-for larger parallel sweeps a PostgreSQL or MySQL backend is more robust.
+Example `sweep.yaml`:
+
+```yaml
+model: nsd
+search_space:
+  variant:
+    type: categorical
+    choices: [diagonal, general, orthogonal]
+  stalk_dim:
+    type: int
+    low: 2
+    high: 8
+  lr:
+    type: float
+    low: 0.0001
+    high: 0.1
+    log: true
+config:
+  n_trials: 100
+  study_name: nsd-cora
+```
+
+Sweeps can be parallelised across machines by adding a `storage` key under
+`config` in the YAML:
+
+```yaml
+config:
+  n_trials: 50
+  study_name: cora_sweep
+  storage: sqlite:///sweeps/cora.db
+```
+
+Then run `sheaf sweep --yaml-path sweep.yaml --preset cora` on each machine;
+they all share the same study. Optuna handles concurrent writes with file
+locking; for larger parallel sweeps a PostgreSQL or MySQL backend is more
+robust.

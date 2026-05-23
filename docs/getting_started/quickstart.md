@@ -22,37 +22,64 @@ The `variant` argument selects the restriction-map family: `"diagonal"` ($d$ par
 10-fold cross-validation on Cora with best-known hyperparameters:
 
 ```bash
-python -m exp.run --preset cora
+sheaf run --preset cora
 ```
 
 Override individual fields on top of a preset:
 
 ```bash
-python -m exp.run --preset cora --model.num-layers 4 --optim.lr 5e-3
+sheaf run --preset cora --model.num-layers 4 --optim.lr 5e-3
 ```
 
 Fully manual configuration:
 
 ```bash
-python -m exp.run \
+sheaf run \
     --dataset.name cora \
     --model.variant general \
     --model.d 4 \
     --model.num-layers 2
 ```
 
-All flags: `python -m exp.run --help`.
+All flags: `sheaf run --help`. The legacy `python -m exp.run` invocation still works.
+
+## Download splits
+
+Fetch the canonical Geom-GCN train/val/test splits (done automatically on first run):
+
+```bash
+sheaf splits                          # all datasets
+sheaf splits --datasets cora texas    # specific datasets only
+sheaf splits --source generate        # generate locally instead
+```
 
 ## Hyperparameter sweep
 
+Sweeps are YAML-driven. Create a config file and run:
+
 ```bash
-python -m exp.sweep --preset cora --n-trials 100
+sheaf sweep --yaml-path sweep.yaml --preset cora
 ```
 
-Distributed sweeps share an SQLite study:
+Example `sweep.yaml`:
 
-```bash
-python -m exp.sweep --preset cora \
-    --storage sqlite:///studies/cora.db \
-    --study-name cora-v1
+```yaml
+model: nsd
+search_space:
+  variant:
+    type: categorical
+    choices: [diagonal, general, orthogonal]
+  stalk_dim:
+    type: int
+    low: 2
+    high: 8
+  lr:
+    type: float
+    low: 0.0001
+    high: 0.1
+    log: true
+config:
+  n_trials: 100
+  study_name: nsd-cora
+  # storage: sqlite:///sweep.db  # uncomment for distributed / resumable sweeps
 ```

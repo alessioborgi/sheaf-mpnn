@@ -3,24 +3,19 @@
 #   Mario Severino, Emanuele Mule, Dario Loi,
 #   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
 
-r"""YAML-driven hyperparameter sweep using Optuna and the model registry.
+"""YAML-driven hyperparameter sweep using Optuna and the model registry.
 
-Usage
------
-    # Run a sweep defined in a YAML file (dataset/folds from a preset):
+Usage::
+
     python -m exp.sweeps.sweep --yaml-path nsd_cora.yaml --preset cora
-
-    # Without a preset (uses config defaults):
     python -m exp.sweeps.sweep --yaml-path nsd_cora.yaml
 
-    # Distributed sweep — add storage under config in the YAML:
-    #   config:
-    #     storage: sqlite:///sweep.db
+Example YAML:
 
-Example YAML
-------------
+.. code-block:: yaml
+
     model: nsd
-    dataset:              # optional — overrides the preset's dataset
+    dataset:
       name: texas
       root: exp/data
     search_space:
@@ -39,7 +34,7 @@ Example YAML
     config:
       n_trials: 100
       study_name: nsd-texas
-      storage: sqlite:///sweep.db   # optional, for distributed runs
+      storage: sqlite:///sweep.db
 """
 
 from __future__ import annotations

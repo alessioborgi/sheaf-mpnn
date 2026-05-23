@@ -183,6 +183,8 @@ python_use_unqualified_type_names = True
 
 suppress_warnings = [
     "autosummary",  # tolerate autosummary stubs during incremental rollout
+    "ref.obj",      # inherited PyG attrs (self.raw_dir, self.processed_dir, etc.)
+    "ref.meth",     # inherited Lightning methods (prepare_data, optimizer_step, etc.)
 ]
 
 # -- Custom roles for inherited third-party docstrings -----------------------

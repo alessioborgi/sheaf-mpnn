@@ -5,13 +5,13 @@
 
 """Dataset loading and Lightning DataModule for the NSD benchmark suite.
 
-Supported datasets
-------------------
-Homophilic  : cora, citeseer
-Heterophilic: chameleon, squirrel, chameleon_filtered, squirrel_filtered,
-            cornell, texas, film
-Heterophilous (Platonov et al. 2023):
-            amazon_ratings, minesweeper, questions, roman_empire, tolokers
+Supported datasets:
+
+- Homophilic: cora, citeseer
+- Heterophilic: chameleon, squirrel, chameleon_filtered, squirrel_filtered,
+  cornell, texas, film
+- Heterophilous (Platonov et al. 2023): amazon_ratings, minesweeper,
+  questions, roman_empire, tolokers
 
 All datasets are downloaded automatically to ``root`` on first use.
 Filtered Wikipedia datasets are fetched from the yandex-research GitHub
@@ -287,7 +287,7 @@ try:
 
         @property
         def homophily(self) -> float:
-            """Edge homophily h in [0,1]: fraction of same-class edges."""
+            """Edge homophily h in ``[0, 1]``: fraction of same-class edges."""
             from torch_geometric.utils import homophily as _h
 
             if self._data is None:
@@ -320,12 +320,15 @@ try:
             return _PyGLoader([self._split], batch_size=1)
 
         def train_dataloader(self) -> _PyGLoader:
+            """Return a single-graph DataLoader for the training split."""
             return self._loader()
 
         def val_dataloader(self) -> _PyGLoader:
+            """Return a single-graph DataLoader for the validation split."""
             return self._loader()
 
         def test_dataloader(self) -> _PyGLoader:
+            """Return a single-graph DataLoader for the test split."""
             return self._loader()
 
 except ImportError:

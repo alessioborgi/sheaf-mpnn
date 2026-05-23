@@ -27,13 +27,3 @@ NSD model
    NSDModel
    NSDVariant
 
-Module reference
-----------------
-
-.. automodule:: sheaf_mpnn.nsd.nsd_layers
-   :members:
-   :show-inheritance:
-
-.. automodule:: sheaf_mpnn.nsd.nsd_model
-   :members:
-   :show-inheritance:

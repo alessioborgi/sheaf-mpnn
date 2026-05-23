@@ -108,19 +108,14 @@ def _apply_pyg_mask_split(data: Data, fold: int) -> Data:
 def apply_split(data: Data, info: DatasetInfo, fold: int) -> Data:
     """Return a *clone* of *data* with 1-D boolean masks for the given fold.
 
-    Parameters
-    ----------
-    data:
-        The full graph dataset (masks may be multi-column at this point).
-    info:
-        Metadata returned by :func:`~exp.data.load_dataset`.
-    fold:
-        Zero-based fold index in ``[0, info.num_splits)``.
+    Args:
+        data: The full graph dataset (masks may be multi-column at this point).
+        info: Metadata returned by :func:`~exp.data.load_dataset`.
+        fold: Zero-based fold index in ``[0, info.num_splits)``.
 
     Returns:
-    -------
-    A cloned ``Data`` object whose ``train_mask``, ``val_mask``, and
-    ``test_mask`` are 1-D boolean tensors of length N.
+        A cloned ``Data`` object whose ``train_mask``, ``val_mask``, and
+        ``test_mask`` are 1-D boolean tensors of length N.
     """
     if info.split_type == "npz_file":
         return _apply_npz_split(data, info.name, fold)

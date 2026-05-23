@@ -12,6 +12,10 @@ Configuration
    :members:
    :show-inheritance:
 
+.. automodule:: exp.registries.base
+   :members:
+   :show-inheritance:
+
 .. automodule:: exp.registries.presets
    :members:
    :show-inheritance:

@@ -4,7 +4,7 @@
 #   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
 
 from enum import Enum, auto
-from typing import Any
+from typing import Any, Literal
 
 import torch.nn.functional as F
 from torch import nn
@@ -46,6 +46,25 @@ class NSDVariant(Enum):
         if self in {NSDVariant.GENERAL_ATTENTION, NSDVariant.ORTHOGONAL_ATTENTION}:
             return {"use_attention": True}
         return {"use_attention": False}
+
+    def build_kwargs(
+        self,
+        orth_strategy: Literal["cayley", "fasth"] = "cayley",
+        rank: int = 1,
+    ) -> dict[str, Any]:
+        """Build the full layer keyword-argument dict for this variant."""
+        if self == NSDVariant.DIAGONAL:
+            return {}
+        if self == NSDVariant.LOW_RANK:
+            return {"rank": rank}
+        if self == NSDVariant.GENERAL:
+            return {"use_attention": False}
+        if self == NSDVariant.GENERAL_ATTENTION:
+            return {"use_attention": True}
+        if self == NSDVariant.ORTHOGONAL:
+            return {"use_attention": False, "orth_strategy": orth_strategy}
+        # ORTHOGONAL_ATTENTION
+        return {"use_attention": True, "orth_strategy": orth_strategy}
 
 
 class NSDModel(nn.Module):
@@ -132,11 +151,7 @@ class NSDModel(nn.Module):
         self.dropout_layer = nn.Dropout(p=dropout)
         self.encoder = nn.Linear(in_channels, context_dim)
 
-        extra_kwargs = variant.layer_kwargs.copy()
-        if variant == NSDVariant.ORTHOGONAL:
-            extra_kwargs["orth_strategy"] = orth_strategy
-        if variant == NSDVariant.LOW_RANK:
-            extra_kwargs["rank"] = rank
+        extra_kwargs = variant.build_kwargs(orth_strategy=orth_strategy, rank=rank)
 
         self.layers = nn.ModuleList(
             [
@@ -181,6 +196,16 @@ class NSDModel(nn.Module):
         Returns:
             torch.Tensor: Node outputs with shape ``[num_nodes, out_channels]``.
         """
+        if x.dim() != 2 or x.size(1) != self.encoder.in_features:
+            raise ValueError(
+                f"x must be [num_nodes, {self.encoder.in_features}], \
+                got {tuple(x.shape)}"
+            )
+        if edge_index.shape[0] != 2:
+            raise ValueError(
+                f"edge_index must have shape [2, num_edges], got \
+                    {tuple(edge_index.shape)}"
+            )
         # Lift raw features to stalk space: [N, in_channels] -> [N, d, f].
         x_stalk = self.encoder(self.input_dropout_layer(x)).view(
             -1, self.stalk_dim, self.hidden_dim

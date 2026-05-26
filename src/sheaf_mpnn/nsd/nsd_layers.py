@@ -4,6 +4,7 @@
 #   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
 
 from abc import abstractmethod
+from typing import Literal
 
 import torch
 from torch import nn
@@ -56,7 +57,12 @@ class BaseNSDConv(BaseSheafConv):
         )
         self.alpha = nn.Parameter(torch.tensor(alpha))
 
-    def forward(self, x_feat, x_stalk, edge_index):
+    def forward(
+        self,
+        x_feat: torch.Tensor,
+        x_stalk: torch.Tensor,
+        edge_index: torch.Tensor,
+    ) -> torch.Tensor:
         """Applies one NSD diffusion step to lifted node features.
 
         Args:
@@ -91,8 +97,24 @@ class BaseNSDConv(BaseSheafConv):
     @abstractmethod
     def get_map_products(
         self, x_feat: torch.Tensor, edge_index: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor | None, torch.Tensor]:
         """Precompute self_map and cross_map restriction-map products per edge."""
+
+    def _bidirectional_input(
+        self, x_feat: torch.Tensor, edge_index: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Run self.map_generator on both edge orientations in one forward pass."""
+        src_idx, dst_idx = edge_index
+        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
+        inp = torch.cat(
+            [
+                torch.cat([x_dst, x_src], dim=-1),
+                torch.cat([x_src, x_dst], dim=-1),
+            ],
+            dim=0,
+        )
+        raw_dst, raw_src = self.map_generator(inp).chunk(2, dim=0)
+        return raw_dst, raw_src
 
 
 class DiagonalNSDConv(BaseNSDConv):
@@ -100,11 +122,11 @@ class DiagonalNSDConv(BaseNSDConv):
 
     def __init__(
         self,
-        stalk_dim,
-        in_channels,
-        hidden_dim,
-        alpha=1.0,
-        context_dim=None,
+        stalk_dim: int,
+        in_channels: int,
+        hidden_dim: int,
+        alpha: float = 1.0,
+        context_dim: int | None = None,
         add_self_loops: bool = True,
     ):
         super().__init__(
@@ -126,23 +148,17 @@ class DiagonalNSDConv(BaseNSDConv):
         )
 
     def get_map_products(self, x_feat, edge_index):
-        src_idx, dst_idx = edge_index
-        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
-
-        # Batch both edge orientations into a single MLP forward pass then split.
-        inp = torch.cat(
-            [
-                torch.cat([x_dst, x_src], dim=-1),
-                torch.cat([x_src, x_dst], dim=-1),
-            ],
-            dim=0,
-        )
-        w_dst, w_src = self.map_generator(inp).chunk(2, dim=0)
-
+        w_dst, w_src = self._bidirectional_input(x_feat, edge_index)
         # Return element-wise products [E, d] instead of [E, d, d] diagonal matrices.
         return w_dst**2, w_dst * w_src
 
-    def message(self, z_dst, z_src, self_map, cross_map):
+    def message(
+        self,
+        z_dst: torch.Tensor,
+        z_src: torch.Tensor,
+        self_map: torch.Tensor,
+        cross_map: torch.Tensor,
+    ) -> torch.Tensor:
         # self_map = w_dst^2 [E, d], cross_map = w_dst * w_src [E, d].
         return self_map[:, :, None] * z_dst - cross_map[:, :, None] * z_src
 
@@ -152,11 +168,11 @@ class GeneralNSDConv(BaseNSDConv):
 
     def __init__(
         self,
-        stalk_dim,
-        in_channels,
-        hidden_dim,
-        alpha=1.0,
-        context_dim=None,
+        stalk_dim: int,
+        in_channels: int,
+        hidden_dim: int,
+        alpha: float = 1.0,
+        context_dim: int | None = None,
         add_self_loops: bool = True,
         use_attention: bool = False,
     ):
@@ -182,25 +198,17 @@ class GeneralNSDConv(BaseNSDConv):
         )
 
     def get_map_products(self, x_feat, edge_index):
-        src_idx, dst_idx = edge_index
-        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
-
-        inp = torch.cat(
-            [
-                torch.cat([x_dst, x_src], dim=-1),
-                torch.cat([x_src, x_dst], dim=-1),
-            ],
-            dim=0,
-        )
         phi_dst, phi_src = (
             w.view(-1, self.stalk_dim, self.stalk_dim)
-            for w in self.map_generator(inp).chunk(2, dim=0)
+            for w in self._bidirectional_input(x_feat, edge_index)
         )
 
         if self.use_attention:
             eye = torch.eye(
                 self.stalk_dim, device=x_feat.device, dtype=x_feat.dtype
             ).unsqueeze(0)
+            # softmax produces row-stochastic phi; subtracting from I gives
+            # zero-row-sum maps whose Gram products have a sheaf-Laplacian structure.
             phi_dst = eye - torch.softmax(phi_dst, dim=-1)
             phi_src = eye - torch.softmax(phi_src, dim=-1)
 
@@ -215,15 +223,15 @@ class OrthogonalNSDConv(BaseNSDConv):
 
     def __init__(
         self,
-        stalk_dim,
-        in_channels,
-        hidden_dim,
-        alpha=1.0,
-        context_dim=None,
+        stalk_dim: int,
+        in_channels: int,
+        hidden_dim: int,
+        alpha: float = 1.0,
+        context_dim: int | None = None,
         add_self_loops: bool = True,
-        clamp_val=10.0,
+        clamp_val: float = 10.0,
         use_attention: bool = False,
-        orth_strategy="cayley",
+        orth_strategy: Literal["cayley", "fasth"] = "cayley",
     ):
         """Initializes an orthogonal NSD convolution layer.
 
@@ -248,6 +256,10 @@ class OrthogonalNSDConv(BaseNSDConv):
                 Cayley initialization from main. Defaults to ``False``.
             orth_strategy (str, optional): "cayley" or "fasth". Defaults to "cayley".
         """
+        if orth_strategy not in {"cayley", "fasth"}:
+            raise ValueError(
+                f"orth_strategy must be 'cayley' or 'fasth', got {orth_strategy!r}"
+            )
         super().__init__(
             stalk_dim, in_channels, hidden_dim, alpha, context_dim, add_self_loops
         )
@@ -271,17 +283,7 @@ class OrthogonalNSDConv(BaseNSDConv):
         return apply_orthogonal_norm(cross_map, edge_index, num_nodes)
 
     def get_map_products(self, x_feat, edge_index):
-        src_idx, dst_idx = edge_index
-        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
-
-        inp = torch.cat(
-            [
-                torch.cat([x_dst, x_src], dim=-1),
-                torch.cat([x_src, x_dst], dim=-1),
-            ],
-            dim=0,
-        )
-        params_dst, params_src = self.map_generator(inp).chunk(2, dim=0)
+        params_dst, params_src = self._bidirectional_input(x_feat, edge_index)
 
         if self.use_attention:
             W_dst = attention_cayley(
@@ -301,26 +303,13 @@ class OrthogonalNSDConv(BaseNSDConv):
         cross_map = torch.matmul(W_dst.transpose(-2, -1), W_src)  # [E, d, d]
         return None, cross_map
 
-    def forward(self, x_feat, x_stalk, edge_index):
-        z = self._apply_stalk_transform(x_stalk)
-        num_nodes = x_stalk.size(0)
-        src_idx, dst_idx = edge_index
-        _, cross_map = self.get_map_products(x_feat, edge_index)
-
-        norm_self, norm_cross = self._apply_norm(None, cross_map, edge_index, num_nodes)
-
-        z_src, z_dst = z[src_idx], z[dst_idx]
-        laplacian_out = self.propagate(  # ty: ignore[missing-argument]
-            edge_index,
-            z_dst=z_dst,
-            z_src=z_src,
-            self_map=norm_self,
-            cross_map=norm_cross,
-            size=(num_nodes, num_nodes),
-        )
-        return x_stalk - self.alpha * self.sigma(laplacian_out)
-
-    def message(self, z_dst, z_src, self_map, cross_map):
+    def message(
+        self,
+        z_dst: torch.Tensor,
+        z_src: torch.Tensor,
+        self_map: torch.Tensor,
+        cross_map: torch.Tensor,
+    ) -> torch.Tensor:
         # self_map = D^{-1}_dst [E,1,1]; cross_map = D^{-1/2}_dst W^T W D^{-1/2}_src.
         return self_map * z_dst - torch.matmul(cross_map, z_src)
 
@@ -385,17 +374,7 @@ class LowRankNSDConv(BaseNSDConv):
         )
 
     def get_map_products(self, x_feat, edge_index):
-        src_idx, dst_idx = edge_index
-        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
-
-        inp = torch.cat(
-            [
-                torch.cat([x_dst, x_src], dim=-1),
-                torch.cat([x_src, x_dst], dim=-1),
-            ],
-            dim=0,
-        )
-        raw_dst, raw_src = self.map_generator(inp).chunk(2, dim=0)
+        raw_dst, raw_src = self._bidirectional_input(x_feat, edge_index)
 
         # Reshape into [E, d, 2r], then split into left [E, d, r] and right [E, d, r].
         # Restriction map F = left @ right^T, so F^T = right @ left^T.

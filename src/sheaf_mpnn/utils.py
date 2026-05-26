@@ -8,6 +8,7 @@ import random
 
 import numpy as np
 import torch
+from torch_geometric.utils import degree, scatter
 
 
 def setup_torch(precision: str = "high", seed: int = 42) -> None:
@@ -48,6 +49,195 @@ def setup_torch(precision: str = "high", seed: int = 42) -> None:
     print(f"Float32 matmul precision set to: {precision}")
     print(f"Random seed set to: {seed}", flush=True)
     return None
+
+
+@torch.compile(dynamic=True)
+def batched_sym_matrix_pow(matrices: torch.Tensor, p: float) -> torch.Tensor:
+    """Power of symmetric positive semi-definite matrices via eigendecomposition.
+
+    Uses ``torch.linalg.eigh``, which is faster and more numerically stable than
+    SVD for symmetric matrices. ``eigh`` reads only the lower triangular part, so
+    minor floating-point asymmetries in the upper triangle are ignored.
+
+    Args:
+        matrices: A batch of symmetric PSD matrices [batch, d, d].
+        p: Power exponent (e.g. -0.5 for the inverse square root).
+
+    Returns:
+        matrices^p, shape [batch, d, d].
+    """
+    eigvals, eigvecs = torch.linalg.eigh(matrices)
+    vals_pow = eigvals.clamp(min=1e-8).pow(p)
+    return eigvecs * vals_pow.unsqueeze(-2) @ eigvecs.transpose(-1, -2)
+
+
+def batched_sym_matrix_pow_svd(matrices: torch.Tensor, p: float) -> torch.Tensor:
+    """Power of symmetric matrices using SVD for numerical stability.
+
+    Args:
+        matrices: A batch of matrices [batch, d, d]
+        p: Power exponent
+
+    Returns:
+        Power of each matrix: matrices^p
+    """
+    vecs, vals, _ = torch.linalg.svd(matrices)
+    # Filter singular values smaller than numerical noise threshold
+    good = (
+        vals > vals.max(-1, True).values * vals.size(-1) * torch.finfo(vals.dtype).eps
+    )
+    vals_pow = vals.pow(p).where(
+        good, torch.zeros((), device=matrices.device, dtype=matrices.dtype)
+    )
+    matrix_power = (vecs * vals_pow.unsqueeze(-2)) @ torch.transpose(vecs, -2, -1)
+    return matrix_power
+
+
+# NOTE: self-loops are assumed to already be present in edge_index by the caller;
+# the add_self_loops flag is forwarded here for API consistency but the degree
+# augmentation (+1 / +I) is NOT applied a second time inside these functions.
+def apply_diagonal_norm(
+    self_map: torch.Tensor,
+    cross_map: torch.Tensor,
+    edge_index: torch.Tensor,
+    num_nodes: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Element-wise D^{-1/2} normalization for diagonal restriction maps.
+
+    For F = diag(w), F^T F = diag(w^2). The sheaf degree D_v = Σ w^2 is a
+    d-vector. Self-loops are already encoded in edge_index by the caller.
+    """
+    dst, src = edge_index[1], edge_index[0]
+    # D_v = Σ_{u∈N(v)} w_{v->e}^2, a d-vector per node.
+    D = scatter(self_map, dst, dim=0, dim_size=num_nodes, reduce="sum")
+    # D^{-1/2} is element-wise because D is diagonal.
+    # Clamp D to avoid infs from restriction maps which will have zero values.
+    D_sqrt_inv = D.clamp_min(1e-8).pow(-0.5)
+
+    # Gather per-edge normalization coefficients from source and destination nodes.
+    norm_dst = D_sqrt_inv[dst]
+    norm_src = D_sqrt_inv[src]
+    # D^{-1/2}_dst · (·) · D^{-1/2}_{dst/src} applied element-wise.
+    return norm_dst * self_map * norm_dst, norm_dst * cross_map * norm_src
+
+
+def apply_orthogonal_norm(
+    cross_map: torch.Tensor,
+    edge_index: torch.Tensor,
+    num_nodes: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Symmetric degree normalization for orthogonal restriction maps.
+
+    Because F^T F = I, D_v = deg(v) * I so D^{-1/2} = deg(v)^{-1/2} * I.
+    Returns scalar [E, 1, 1] coefficients for the self- and cross-terms.
+    """
+    dst, src = edge_index[1], edge_index[0]
+    # deg(v) counts incident edges; self-loops already present in edge_index.
+    deg = degree(dst, num_nodes=num_nodes, dtype=cross_map.dtype)
+    # D^{-1/2} = deg^{-1/2} * I; zero out isolated nodes to avoid inf.
+    deg_sqrt_inv = deg.pow(-0.5)
+    deg_sqrt_inv[deg == 0] = 0.0
+    # Self-term: D^{-1/2}_dst I D^{-1/2}_dst = deg_dst^{-1} (scalar per edge).
+    norm_self = (deg_sqrt_inv[dst] ** 2).view(-1, 1, 1)
+    # Cross-term coefficient: deg_dst^{-1/2} * deg_src^{-1/2} (scalar per edge).
+    norm_cross = (deg_sqrt_inv[dst] * deg_sqrt_inv[src]).view(-1, 1, 1)
+    return norm_self, norm_cross * cross_map
+
+
+def apply_low_rank_norm(
+    self_map: torch.Tensor,
+    cross_map: torch.Tensor,
+    edge_index: torch.Tensor,
+    num_nodes: int,
+    stalk_dim: int,
+    training: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Symmetric D^{-1/2} normalization for low_rank restriction maps.
+
+    Builds the sheaf degree matrix D_v = Σ F^T F by scatter-adding per-edge
+    self_map products, then computes D^{-1/2} via eigendecomposition. A small
+    per-stalk diagonal jitter is added during training to keep D non-singular.
+
+    We use this function here also for the low-rank case.
+    """
+    dst, src = edge_index[1], edge_index[0]
+    # D_v = Σ_{u∈N(v)} F_{v->e}^T F_{v->e}, a dxd PSD matrix per node.
+    D = scatter(self_map, dst, dim=0, dim_size=num_nodes, reduce="sum")
+
+    # Per-stalk eps: small uniform perturbation for numerical conditioning.
+    if training:
+        eps = torch.empty(stalk_dim, device=D.device, dtype=D.dtype).uniform_(
+            -0.001, 0.001
+        )
+    else:
+        eps = torch.zeros(stalk_dim, device=D.device, dtype=D.dtype)
+
+    # We already take into account self-loops in edge_index, so we only add the eps
+    # jitter here.
+    D = D + torch.diag_embed(eps)
+
+    # D^{-1/2} via eigendecomposition; safe because D is PSD + augmented diagonal.
+    D_sqrt_inv = batched_sym_matrix_pow_svd(D, -0.5)
+    D_inv_dst = D_sqrt_inv[dst]
+    D_inv_src = D_sqrt_inv[src]
+    # Symmetric normalization: D^{-1/2}_dst · (·) · D^{-1/2}_{dst/src}.
+    norm_self = D_inv_dst @ self_map @ D_inv_dst
+    norm_cross = D_inv_dst @ cross_map @ D_inv_src
+
+    if not torch.all(torch.isfinite(norm_self)):
+        raise RuntimeError("norm_self contains non-finite values after normalization")
+    if not torch.all(torch.isfinite(norm_cross)):
+        raise RuntimeError("norm_cross contains non-finite values after normalization")
+
+    return norm_self, norm_cross
+
+
+def apply_general_norm(
+    self_map: torch.Tensor,
+    cross_map: torch.Tensor,
+    edge_index: torch.Tensor,
+    num_nodes: int,
+    stalk_dim: int,
+    training: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Symmetric D^{-1/2} normalization for general (full-matrix) restriction maps.
+
+    Builds the sheaf degree matrix D_v = Σ F^T F by scatter-adding per-edge
+    self_map products, then computes D^{-1/2} via eigendecomposition. A small
+    per-stalk diagonal jitter is added during training to keep D non-singular.
+
+    We use this function here also for the low-rank case.
+    """
+    dst, src = edge_index[1], edge_index[0]
+    # D_v = Σ_{u∈N(v)} F_{v->e}^T F_{v->e}, a dxd PSD matrix per node.
+    D = scatter(self_map, dst, dim=0, dim_size=num_nodes, reduce="sum")
+
+    # Per-stalk eps: small uniform perturbation for numerical conditioning.
+    if training:
+        eps = torch.empty(stalk_dim, device=D.device, dtype=D.dtype).uniform_(
+            -0.001, 0.001
+        )
+    else:
+        eps = torch.zeros(stalk_dim, device=D.device, dtype=D.dtype)
+
+    # We already take into account self-loops in edge_index, so we only add the eps
+    # jitter here.
+    D = D + torch.diag_embed(eps)
+
+    # D^{-1/2} via eigendecomposition; safe because D is PSD + augmented diagonal.
+    D_sqrt_inv = batched_sym_matrix_pow(D, -0.5)
+    D_inv_dst = D_sqrt_inv[dst]
+    D_inv_src = D_sqrt_inv[src]
+    # Symmetric normalization: D^{-1/2}_dst · (·) · D^{-1/2}_{dst/src}.
+    norm_self = D_inv_dst @ self_map @ D_inv_dst
+    norm_cross = D_inv_dst @ cross_map @ D_inv_src
+
+    if not torch.all(torch.isfinite(norm_self)):
+        raise RuntimeError("norm_self contains non-finite values after normalization")
+    if not torch.all(torch.isfinite(norm_cross)):
+        raise RuntimeError("norm_cross contains non-finite values after normalization")
+
+    return norm_self, norm_cross
 
 
 def cayley(params: torch.Tensor, d: int, clamp_val: float = 10.0) -> torch.Tensor:

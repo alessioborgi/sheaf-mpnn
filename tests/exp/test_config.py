@@ -96,13 +96,13 @@ class TestOptimConfig:
 class TestCVConfig:
     def test_defaults(self):
         cfg = CVConfig()
-        assert cfg.n_folds == 10
+        assert cfg.folds == 10
         assert cfg.seed == 42
         assert cfg.min_acc == pytest.approx(0.0)
 
     def test_custom_folds_and_seed(self):
-        cfg = CVConfig(n_folds=5, seed=0, min_acc=0.7)
-        assert cfg.n_folds == 5
+        cfg = CVConfig(folds=5, seed=0, min_acc=0.7)
+        assert cfg.folds == 5
         assert cfg.seed == 0
         assert cfg.min_acc == pytest.approx(0.7)
 
@@ -158,7 +158,7 @@ class TestConfig:
         assert cfg.model.hidden_dim == 16
         # Unmodified sub-configs retain their defaults.
         assert cfg.optim.lr == pytest.approx(0.01)
-        assert cfg.cv.n_folds == 10
+        assert cfg.cv.folds == 10
 
     def test_dataclasses_replace(self):
         cfg = Config()

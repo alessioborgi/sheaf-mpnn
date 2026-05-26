@@ -9,7 +9,15 @@ import torch
 from torch import nn
 
 from sheaf_mpnn.base_conv import BaseSheafConv
-from sheaf_mpnn.utils import attention_cayley, cayley, householder
+from sheaf_mpnn.utils import (
+    apply_diagonal_norm,
+    apply_general_norm,
+    apply_low_rank_norm,
+    apply_orthogonal_norm,
+    attention_cayley,
+    cayley,
+    householder,
+)
 
 
 class BaseNSDConv(BaseSheafConv):
@@ -59,38 +67,25 @@ class BaseNSDConv(BaseSheafConv):
         Returns:
             torch.Tensor: Updated stalk features [num_nodes, d, in_channels].
         """
-        # Bilateral stalk transform z = W1 x W2, followed by
-        # symmetric degree normalization per edge.
         z = self._apply_stalk_transform(x_stalk)
-
-        # Compute symmetric degree normalization coefficients s_norm for each edge (v,u)
-        s_norm = self._compute_s_norm(edge_index, x_stalk.size(0), x_stalk.dtype)
-
-        # Precompute restriction_maps_dst^T restriction_maps_dst (self) and
-        # restriction_maps_dst^T restriction_maps_src (cross) once for all edges.
-        self_map, cross_map = self.get_map_products(x_feat, edge_index)
-
-        # Pre-index z to edge level so message() receives z_dst and z_src directly.
-        # size is passed explicitly so PyG can scatter to the right number of nodes
-        # even when edge_index is empty.
         num_nodes = x_stalk.size(0)
         src_idx, dst_idx = edge_index
-        z_src, z_dst = z[src_idx], z[dst_idx]
 
-        # Aggregate sheaf Laplacian:
-        # sum_u s_norm (restriction_maps_dst^T restriction_maps_dst z_dst
-        #              - restriction_maps_dst^T restriction_maps_src z_src).
+        self_map, cross_map = self.get_map_products(x_feat, edge_index)
+        norm_self, norm_cross = self._apply_norm(
+            self_map, cross_map, edge_index, num_nodes
+        )
+
+        z_src, z_dst = z[src_idx], z[dst_idx]
         laplacian_out = self.propagate(  # ty: ignore[missing-argument]
             edge_index,
             z_dst=z_dst,
             z_src=z_src,
-            self_map=self_map,
-            cross_map=cross_map,
-            s_norm=s_norm,
+            self_map=norm_self,
+            cross_map=norm_cross,
             size=(num_nodes, num_nodes),
         )
 
-        # Residual update with learnable step size; tanh keeps the signal bounded.
         return x_stalk - self.alpha * self.sigma(laplacian_out)
 
     @abstractmethod
@@ -122,14 +117,23 @@ class DiagonalNSDConv(BaseNSDConv):
         )
         self.reset_parameters()
 
+    def _apply_norm(self, self_map, cross_map, edge_index, num_nodes):
+        return apply_diagonal_norm(
+            self_map,
+            cross_map,
+            edge_index,
+            num_nodes,
+        )
+
     def get_map_products(self, x_feat, edge_index):
         src_idx, dst_idx = edge_index
+        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
 
         # Batch both edge orientations into a single MLP forward pass then split.
         inp = torch.cat(
             [
-                torch.cat([x_feat[dst_idx], x_feat[src_idx]], dim=-1),
-                torch.cat([x_feat[src_idx], x_feat[dst_idx]], dim=-1),
+                torch.cat([x_dst, x_src], dim=-1),
+                torch.cat([x_src, x_dst], dim=-1),
             ],
             dim=0,
         )
@@ -138,11 +142,9 @@ class DiagonalNSDConv(BaseNSDConv):
         # Return element-wise products [E, d] instead of [E, d, d] diagonal matrices.
         return w_dst**2, w_dst * w_src
 
-    def message(self, z_dst, z_src, self_map, cross_map, s_norm):
+    def message(self, z_dst, z_src, self_map, cross_map):
         # self_map = w_dst^2 [E, d], cross_map = w_dst * w_src [E, d].
-        return s_norm.view(-1, 1, 1) * (
-            self_map.unsqueeze(-1) * z_dst - cross_map.unsqueeze(-1) * z_src
-        )
+        return self_map[:, :, None] * z_dst - cross_map[:, :, None] * z_src
 
 
 class GeneralNSDConv(BaseNSDConv):
@@ -169,14 +171,24 @@ class GeneralNSDConv(BaseNSDConv):
         )
         self.reset_parameters()
 
+    def _apply_norm(self, self_map, cross_map, edge_index, num_nodes):
+        return apply_general_norm(
+            self_map,
+            cross_map,
+            edge_index,
+            num_nodes,
+            self.stalk_dim,
+            self.training,
+        )
+
     def get_map_products(self, x_feat, edge_index):
         src_idx, dst_idx = edge_index
+        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
 
-        # Batch both edge orientations into a single MLP forward pass then split.
         inp = torch.cat(
             [
-                torch.cat([x_feat[dst_idx], x_feat[src_idx]], dim=-1),
-                torch.cat([x_feat[src_idx], x_feat[dst_idx]], dim=-1),
+                torch.cat([x_dst, x_src], dim=-1),
+                torch.cat([x_src, x_dst], dim=-1),
             ],
             dim=0,
         )
@@ -192,9 +204,9 @@ class GeneralNSDConv(BaseNSDConv):
             phi_dst = eye - torch.softmax(phi_dst, dim=-1)
             phi_src = eye - torch.softmax(phi_src, dim=-1)
 
-        # Precompute the two products once; message() then only needs two matmuls.
         self_map = torch.matmul(phi_dst.transpose(-2, -1), phi_dst)  # [E, d, d]
         cross_map = torch.matmul(phi_dst.transpose(-2, -1), phi_src)  # [E, d, d]
+
         return self_map, cross_map
 
 
@@ -255,14 +267,17 @@ class OrthogonalNSDConv(BaseNSDConv):
         )
         self.reset_parameters()
 
+    def _apply_norm(self, self_map, cross_map, edge_index, num_nodes):
+        return apply_orthogonal_norm(cross_map, edge_index, num_nodes)
+
     def get_map_products(self, x_feat, edge_index):
         src_idx, dst_idx = edge_index
+        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
 
-        # Batch both edge orientations into a single MLP forward pass.
         inp = torch.cat(
             [
-                torch.cat([x_feat[dst_idx], x_feat[src_idx]], dim=-1),
-                torch.cat([x_feat[src_idx], x_feat[dst_idx]], dim=-1),
+                torch.cat([x_dst, x_src], dim=-1),
+                torch.cat([x_src, x_dst], dim=-1),
             ],
             dim=0,
         )
@@ -287,30 +302,27 @@ class OrthogonalNSDConv(BaseNSDConv):
         return None, cross_map
 
     def forward(self, x_feat, x_stalk, edge_index):
-        """Applies one orthogonal NSD diffusion step."""
         z = self._apply_stalk_transform(x_stalk)
         num_nodes = x_stalk.size(0)
-        s_norm = self._compute_s_norm(edge_index, num_nodes, x_stalk.dtype)
-
-        # self_map = W_dst^T W_dst = I; only cross_map = W_dst^T W_src is needed.
-        _, cross_map = self.get_map_products(x_feat, edge_index)
         src_idx, dst_idx = edge_index
+        _, cross_map = self.get_map_products(x_feat, edge_index)
+
+        norm_self, norm_cross = self._apply_norm(None, cross_map, edge_index, num_nodes)
+
         z_src, z_dst = z[src_idx], z[dst_idx]
         laplacian_out = self.propagate(  # ty: ignore[missing-argument]
             edge_index,
             z_dst=z_dst,
             z_src=z_src,
-            cross_map=cross_map,
-            s_norm=s_norm,
+            self_map=norm_self,
+            cross_map=norm_cross,
             size=(num_nodes, num_nodes),
         )
         return x_stalk - self.alpha * self.sigma(laplacian_out)
 
-    def message(
-        self, z_dst, z_src, cross_map, s_norm
-    ):  # ty: ignore[invalid-method-override]
-        # self_map = I for orthogonal maps, so the self term reduces to z_dst.
-        return s_norm.view(-1, 1, 1) * (z_dst - torch.matmul(cross_map, z_src))
+    def message(self, z_dst, z_src, self_map, cross_map):
+        # self_map = D^{-1}_dst [E,1,1]; cross_map = D^{-1/2}_dst W^T W D^{-1/2}_src.
+        return self_map * z_dst - torch.matmul(cross_map, z_src)
 
 
 class LowRankNSDConv(BaseNSDConv):
@@ -355,7 +367,6 @@ class LowRankNSDConv(BaseNSDConv):
         if rank <= 0:
             raise ValueError("rank must be positive")
         self.rank = rank
-        # Output 2*d*rank params per endpoint: A factor (d*rank) and B factor (d*rank).
         self.map_generator = nn.Sequential(
             nn.Linear(2 * self.context_dim, hidden_dim),
             nn.ReLU(),
@@ -363,13 +374,24 @@ class LowRankNSDConv(BaseNSDConv):
         )
         self.reset_parameters()
 
+    def _apply_norm(self, self_map, cross_map, edge_index, num_nodes):
+        return apply_low_rank_norm(
+            self_map,
+            cross_map,
+            edge_index,
+            num_nodes,
+            self.stalk_dim,
+            self.training,
+        )
+
     def get_map_products(self, x_feat, edge_index):
         src_idx, dst_idx = edge_index
+        x_dst, x_src = x_feat[dst_idx], x_feat[src_idx]
 
         inp = torch.cat(
             [
-                torch.cat([x_feat[dst_idx], x_feat[src_idx]], dim=-1),
-                torch.cat([x_feat[src_idx], x_feat[dst_idx]], dim=-1),
+                torch.cat([x_dst, x_src], dim=-1),
+                torch.cat([x_src, x_dst], dim=-1),
             ],
             dim=0,
         )
@@ -384,10 +406,6 @@ class LowRankNSDConv(BaseNSDConv):
             2, dim=-1
         )
 
-        # restriction_maps_dst^T restriction_maps_dst
-        #   = right_dst (left_dst^T left_dst) right_dst^T
-        # restriction_maps_dst^T restriction_maps_src
-        #   = right_dst (left_dst^T left_src) right_src^T
         gram_dst_dst = torch.matmul(left_dst.transpose(-2, -1), left_dst)  # [E, r, r]
         gram_dst_src = torch.matmul(left_dst.transpose(-2, -1), left_src)  # [E, r, r]
 

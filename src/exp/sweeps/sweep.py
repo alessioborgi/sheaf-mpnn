@@ -173,7 +173,7 @@ def _run_trial(
         np.random.seed(seed)  # noqa: NPY002
         torch.manual_seed(seed)
 
-        fold = seed_offset % cfg.cv.n_folds
+        fold = seed_offset % cfg.cv.folds
         dm = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=fold)
         dm.setup()
 

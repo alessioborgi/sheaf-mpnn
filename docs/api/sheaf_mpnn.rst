@@ -26,4 +26,3 @@ NSD model
 
    NSDModel
    NSDVariant
-

@@ -6,7 +6,7 @@
 """Typed configuration dataclasses for the NSD benchmark runner.
 
 Consumed by ``tyro.cli`` in ``exp/run.py``.  Per-dataset preset defaults live
-in ``exp/presets.py`` and are injected via ``tyro.cli(Config, default=...)``,
+in ``exp/registries/presets.py`` and are injected via ``tyro.cli(Config, default=...)``,
 so every field remains overridable from the command line.
 """
 
@@ -27,6 +27,7 @@ class ModelVariant(StrEnum):
     ORTHOGONAL = auto()
     GENERAL_ATTENTION = auto()
     ORTHOGONAL_ATTENTION = auto()
+    LOW_RANK = auto()
 
 
 @dataclass
@@ -39,7 +40,7 @@ class DatasetConfig:
 
 @dataclass
 class ModelConfig:
-    """Sheaf architecture hyperparameters."""
+    """NSD architecture hyperparameters."""
 
     type: ModelType = ModelType.NSD
     variant: Literal[
@@ -56,6 +57,12 @@ class ModelConfig:
     alpha: float = 1.0
     rank: int = 1
     orth_strategy: Literal["cayley", "fasth"] = "cayley"
+    normalize_output: bool = True
+    jknet: bool = False
+    # Unused for NSD, kept so SweepConfig can reference ModelConfig fields generically
+    num_heads: int = 1
+    leaky_relu_slope: float = 0.2
+    clamp_val: float = 10.0
 
 
 @dataclass
@@ -75,22 +82,26 @@ class OptimConfig:
     epochs: int = 1000
     early_stopping: int = 200
     stop_strategy: Literal["loss", "acc"] = "loss"
+    batch_size: int = 1
 
 
 @dataclass
 class CVConfig:
     """Cross-validation setup."""
 
-    n_folds: int = 10
+    folds: int = 10
     seed: int = 42
     min_acc: float = 0.0
 
 
 @dataclass
 class HardwareConfig:
-    """Hardware selection."""
+    """Hardware selection and data loading performance."""
 
     cuda: int = 0
+    num_workers: int = 0
+    pin_memory: bool = True
+    persistent_workers: bool = False
 
 
 @dataclass

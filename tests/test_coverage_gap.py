@@ -10,12 +10,12 @@ from sheaf_mpnn.base_conv import BaseSheafConv
 from sheaf_mpnn.nsd.nsd_model import NSDModel, NSDVariant
 
 
-def test_base_conv_no_self_loops():
-    # Covers src/sheaf_mpnn/base_conv.py:75
+def test_base_conv_stalk_transform():
+    # Covers src/sheaf_mpnn/base_conv.py: _apply_stalk_transform
     conv = BaseSheafConv(stalk_dim=2, in_channels=4, hidden_dim=4, add_self_loops=False)
-    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
-    norm = conv._compute_s_norm(edge_index, num_nodes=2, dtype=torch.float)
-    assert norm.shape == (2,)
+    x = torch.randn(5, 2, 4)
+    out = conv._apply_stalk_transform(x)
+    assert out.shape == x.shape
 
 
 def test_nsd_model_reset_parameters():

@@ -1,0 +1,35 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+.claude/
+
+# Coverage & tests
+.coverage
+htmlcov/
+coverage.xml
+
+# OS
+.DS_Store
+
+# W&B local artefacts
+wandb/
+
+# Pre-computed split files (downloaded on demand via exp/gen_splits.py)
+# Ignore the whole folder so any shard format stays out of the index.
+src/exp/splits/*
+!src/exp/splits/.gitkeep
+
+# Downloaded dataset files (cached by PyG, downloaded on demand)
+exp/data/*
+!exp/data/.gitkeep
+src/exp/data/*
+!src/exp/data/.gitkeep
+checkpoints/

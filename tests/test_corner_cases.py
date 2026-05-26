@@ -83,9 +83,7 @@ def test_diagonal_nsd_message_shapes():
     x_j = torch.randn(5, 2, 4)
     t_diag = torch.randn(5, 2)
     t = torch.randn(5, 2)
-    s_norm = torch.randn(5)
-
-    msg = conv.message(x_i, x_j, t_diag, t, s_norm)
+    msg = conv.message(x_i, x_j, t_diag, t)
     assert msg.shape == (5, 2, 4)
 
 

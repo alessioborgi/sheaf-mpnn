@@ -6,7 +6,9 @@
 from enum import Enum, auto
 from typing import Any
 
+import torch.nn.functional as F
 from torch import nn
+from torch_geometric.nn.models import JumpingKnowledge
 
 from sheaf_mpnn.nsd.nsd_layers import (
     BaseNSDConv,
@@ -68,6 +70,8 @@ class NSDModel(nn.Module):
         rank: int = 1,
         input_dropout: float = 0.0,
         dropout: float = 0.0,
+        normalize_output: bool = True,
+        jknet: bool = False,
     ):
         """Initializes an NSD model for node-level prediction.
 
@@ -96,6 +100,14 @@ class NSDModel(nn.Module):
                 input features before encoding. Defaults to 0.0.
             dropout (float, optional): Dropout probability applied to stalk features
                 between layers. Defaults to 0.0.
+            normalize_output (bool, optional): If ``True``, L2-normalise the
+                representation before the decoder (Lv et al., 2021). If ``jknet``
+                is ``True``, each layer's output is also normalised before
+                concatenation. Defaults to ``True``.
+            jknet (bool, optional): If ``True``, collect hidden states from every
+                layer and concatenate them before the decoder (Xu et al., 2018).
+                Normalization is controlled by ``normalize_output``. Intended for
+                link prediction. Defaults to ``False``.
 
         """
         super().__init__()
@@ -111,6 +123,8 @@ class NSDModel(nn.Module):
         self.out_channels = out_channels
         self.num_layers = num_layers
         self.rank = rank
+        self.normalize_output = normalize_output
+        self.jknet = jknet
         context_dim = stalk_dim * hidden_dim
         layer_class = variant.layer_class
 
@@ -139,7 +153,14 @@ class NSDModel(nn.Module):
             ]
         )
 
-        self.decoder = nn.Linear(context_dim, out_channels)
+        # JKNet expands decoder input to L  context_dim (Xu et al., 2018).
+        decoder_in = (num_layers if jknet else 1) * context_dim
+        self.decoder = nn.Linear(decoder_in, out_channels)
+
+        if jknet:
+            self.jk = JumpingKnowledge(
+                mode="cat", channels=context_dim, num_layers=num_layers
+            )
 
     def reset_parameters(self):
         self.encoder.reset_parameters()
@@ -165,12 +186,27 @@ class NSDModel(nn.Module):
             -1, self.stalk_dim, self.hidden_dim
         )
 
+        layer_reps = []
         for layer in self.layers:
             # Flatten stalk to [N, d*f] as context for restriction-map generation.
             x_feat = self.dropout_layer(x_stalk.reshape(x_stalk.size(0), -1))
             x_stalk = layer(x_feat, x_stalk, edge_index)
+            if self.jknet:
+                h = x_stalk.reshape(x_stalk.size(0), -1)
+                if self.normalize_output:
+                    h = F.normalize(h, p=2, dim=-1)
+                layer_reps.append(h)
 
-        return self.decoder(x_stalk.reshape(x_stalk.size(0), -1))
+        if self.jknet:
+            x_out = self.jk(layer_reps)
+        else:
+            x_out = x_stalk.reshape(x_stalk.size(0), -1)
+
+        if self.normalize_output:
+            # L2-normalise final representation — Lv et al. (2021).
+            x_out = F.normalize(x_out, p=2, dim=-1)
+
+        return self.decoder(x_out)
 
 
 __all__ = ["NSDVariant", "NSDModel"]

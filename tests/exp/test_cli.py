@@ -268,17 +268,17 @@ class TestRunFunction:
         assert np.mean(results) == pytest.approx(0.80)
 
     def test_min_acc_guard_aborts_after_fold_0(self):
-        cfg = _make_cfg(cv=CVConfig(n_folds=10, seed=42, min_acc=0.99))
+        cfg = _make_cfg(cv=CVConfig(folds=10, seed=42, min_acc=0.99))
         results = self._run_mocked(cfg=cfg, n_folds=10, test_val=0.50)
         assert len(results) == 1
 
     def test_min_acc_guard_does_not_abort_when_threshold_met(self):
-        cfg = _make_cfg(cv=CVConfig(n_folds=3, seed=42, min_acc=0.1))
+        cfg = _make_cfg(cv=CVConfig(folds=3, seed=42, min_acc=0.1))
         results = self._run_mocked(cfg=cfg, n_folds=3, test_val=0.75)
         assert len(results) == 3
 
     def test_min_acc_guard_only_applies_to_acc_metric(self):
-        cfg = _make_cfg(cv=CVConfig(n_folds=3, seed=42, min_acc=0.99))
+        cfg = _make_cfg(cv=CVConfig(folds=3, seed=42, min_acc=0.99))
         results = self._run_mocked(cfg=cfg, n_folds=3, test_val=0.10, metric="roc_auc")
         assert len(results) == 3
 

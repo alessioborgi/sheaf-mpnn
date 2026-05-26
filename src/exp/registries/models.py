@@ -81,6 +81,8 @@ def _build_nsd(
         orth_strategy=cfg.orth_strategy,
         input_dropout=reg.input_dropout,
         dropout=reg.dropout,
+        normalize_output=cfg.normalize_output,
+        jknet=cfg.jknet,
     )
 
 

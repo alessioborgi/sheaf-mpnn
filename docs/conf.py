@@ -183,13 +183,12 @@ python_use_unqualified_type_names = True
 
 suppress_warnings = [
     "autosummary",  # tolerate autosummary stubs during incremental rollout
-    "ref.obj",      # inherited PyG attrs (self.raw_dir, self.processed_dir, etc.)
-    "ref.meth",     # inherited Lightning methods (prepare_data, optimizer_step, etc.)
+    "ref.obj",  # inherited PyG attrs (self.raw_dir, self.processed_dir, etc.)
+    "ref.meth",  # inherited Lightning methods (prepare_data, optimizer_step, etc.)
 ]
 
 # -- Custom roles for inherited third-party docstrings -----------------------
 from docutils import nodes  # noqa: E402
-from docutils.parsers.rst import roles as _roles  # noqa: E402
 
 
 def _passthrough_role(name, rawtext, text, lineno, inliner, options=None, content=None):

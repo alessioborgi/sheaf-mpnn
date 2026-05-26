@@ -3,10 +3,11 @@
 #   Mario Severino, Emanuele Mule, Dario Loi,
 #   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
 
+from abc import abstractmethod
+
 import torch
 from torch import nn
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, degree
 
 
 class BaseSheafConv(MessagePassing):
@@ -19,11 +20,12 @@ class BaseSheafConv(MessagePassing):
     * ``sigma`` -- activation function (Tanh).
     * ``reset_parameters()`` -- Xavier init for W1, W2, and any map_generator.
     * ``_apply_stalk_transform(x)`` -- computes ``W1 @ x @ W2``.
-    * ``_compute_s_norm(edge_index, num_nodes, dtype)`` -- symmetric degree
-      normalisation coefficients ``1 / sqrt(deg(v) * deg(u))`` per edge.
+    * ``_apply_norm(...)`` -- abstract; each concrete subclass delegates to the
+      appropriate ``apply_*_norm`` function from ``sheaf_mpnn.utils``.
 
     Concrete subclasses must implement:
         ``get_map_products(x_feat, edge_index) -> (self_map, cross_map)``
+        ``_apply_norm(self_map, cross_map, edge_index, num_nodes)``
         ``forward(x_feat, x_stalk, edge_index) -> updated stalk``
         ``message(...)``
     """
@@ -51,7 +53,8 @@ class BaseSheafConv(MessagePassing):
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.W1)
         nn.init.xavier_uniform_(self.W2)
-        # Handles both the singular map_generator and a map_generators ModuleList.
+        # Covers both the singular map_generator (NSD) and the
+        # map_generators ModuleList (SheafAttnConv).
         generators: list[nn.Sequential] = []
         if hasattr(self, "map_generator"):
             gen = self.map_generator
@@ -67,7 +70,7 @@ class BaseSheafConv(MessagePassing):
             for m in gen:
                 if isinstance(m, nn.Linear):
                     # gain=0.01: warm-start near-zero so the Laplacian is off at init.
-                    nn.init.xavier_uniform_(m.weight, gain=0.01)
+                    nn.init.xavier_uniform_(m.weight)
                     if m.bias is not None:
                         nn.init.constant_(m.bias, 0.0)
 
@@ -75,44 +78,37 @@ class BaseSheafConv(MessagePassing):
         """Applies bilateral stalk transform: W1 @ x @ W2."""
         return torch.matmul(torch.matmul(self.W1, x), self.W2)
 
-    def _compute_s_norm(self, edge_index, num_nodes, dtype):
-        """Computes symmetric degree normalisation coefficients per edge.
+    @abstractmethod
+    def _apply_norm(self, self_map, cross_map, edge_index, num_nodes):
+        """Normalizes restriction-map products by the sheaf degree matrix D^{-1/2}.
 
-        When ``add_self_loops`` is ``True``, self-loops are added before
-        computing the degree so that every node has degree at least 1, which
-        avoids division by zero for isolated nodes. The normalization uses the
-        augmented degree but is returned only for the original edges.
+        Each concrete subclass calls the matching ``apply_*_norm`` utility from
+        ``sheaf_mpnn.utils``:
+            Diagonal   → apply_diagonal_norm(self_map, cross_map, ..., add_self_loops)
+            Orthogonal → apply_orthogonal_norm(cross_map, ..., add_self_loops)
+            Low-rank   → apply_general_norm(self_map, cross_map, ..., stalk_dim, ...)
+            General    → apply_general_norm(self_map, cross_map, ..., stalk_dim, ...)
+
+        Returns:
+            (norm_self, norm_cross): Normalized products ready for message().
         """
-        src_idx, dst_idx = edge_index
-        if self.add_self_loops:
-            edge_index_for_deg, _ = add_self_loops(edge_index, num_nodes=num_nodes)
-        else:
-            edge_index_for_deg = edge_index
-        deg = degree(edge_index_for_deg[1], num_nodes, dtype=dtype)
-        norm = deg.pow(-0.5)
-        norm[deg == 0] = 0.0
-        return norm[dst_idx] * norm[src_idx]
+        raise NotImplementedError("Subclasses must implement _apply_norm.")
 
     def message(  # ty: ignore[invalid-method-override]
-        self, z_dst, z_src, self_map, cross_map, s_norm
+        self, z_dst, z_src, self_map, cross_map
     ):
         """Builds per-edge sheaf Laplacian messages.
 
         Args:
             z_dst: Destination-node transformed stalks [E, d, f].
             z_src: Source-node transformed stalks [E, d, f].
-            self_map: Precomputed restriction_maps_dst^T restriction_maps_dst
-                per edge [E, d, d].
-            cross_map: Precomputed restriction_maps_dst^T restriction_maps_src
-                per edge [E, d, d].
-            s_norm: Symmetric normalization coefficient [E].
+            self_map: Normalized F_dst^T F_dst per edge [E, d, d].
+            cross_map: Normalized F_dst^T F_src per edge [E, d, d].
 
         Returns:
             torch.Tensor: Per-edge messages [E, d, f].
         """
-        return s_norm.view(-1, 1, 1) * (
-            torch.matmul(self_map, z_dst) - torch.matmul(cross_map, z_src)
-        )
+        return torch.matmul(self_map, z_dst) - torch.matmul(cross_map, z_src)
 
 
 __all__ = ["BaseSheafConv"]

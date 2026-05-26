@@ -10,7 +10,6 @@ Usage
     # Via the unified CLI (recommended):
     sheaf run --preset cora
     sheaf run --preset texas --model.num_layers 3
-    sheaf run --dataset.name cora --model.variant general --model.stalk_dim 4
 
     # Direct module invocation:
     python -m exp.run --preset cora
@@ -143,7 +142,15 @@ def _run_fold(
         f"{_model_label(cfg)}-d{cfg.model.stalk_dim}"
         f"-h{cfg.model.hidden_dim}-L{cfg.model.num_layers}"
     )
-    dm = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=fold)
+    dm = SheafDataModule(
+        cfg.dataset.name,
+        root=cfg.dataset.root,
+        fold=fold,
+        batch_size=cfg.optim.batch_size,
+        num_workers=cfg.hardware.num_workers,
+        pin_memory=cfg.hardware.pin_memory,
+        persistent_workers=cfg.hardware.persistent_workers,
+    )
     module = SheafLightningModule(cfg, info)
     logger = _make_logger(cfg, info, fold, run_name)
 
@@ -246,7 +253,7 @@ def run(cfg: Config) -> list[float]:
     dm_meta = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=0)
     dm_meta.setup()
     info = dm_meta.info
-    n_folds = min(cfg.cv.n_folds, info.num_splits)
+    n_folds = min(cfg.cv.folds, info.num_splits)
 
     n_train, n_val, n_test = dm_meta.split_sizes
     avg_deg = (dm_meta.num_edges * 2) / dm_meta.num_nodes

@@ -3,7 +3,13 @@
 #   Mario Severino, Emanuele Mule, Dario Loi,
 #   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
 
-"""PyTorch Lightning module wrapping Sheaf models."""
+"""PyTorch Lightning module wrapping Sheaf models.
+
+This module provides the `SheafLightningModule`, which handles the training loop,
+evaluation metrics, and optimizer configuration for all sheaf-based models.
+It is designed to be compatible with both transductive (node classification)
+and inductive (graph classification) tasks.
+"""
 
 from __future__ import annotations
 
@@ -21,13 +27,23 @@ from exp.registries.models import model_registry
 
 
 class SheafLightningModule(LightningModule):
-    """Wraps Sheaf models with Lightning training / evaluation logic."""
+    """Wraps Sheaf models with Lightning training / evaluation logic.
+
+    This class serves as the interface between the raw model and the PyTorch
+    Lightning Trainer. It handles loss calculation, metric tracking (ACC/AUC),
+    and hardware-agnostic execution.
+
+    Args:
+        cfg: Global configuration object containing model and optimization params.
+        info: Metadata about the dataset (num_features, num_classes, metric, etc.).
+    """
 
     def __init__(self, cfg: Config, info: DatasetInfo) -> None:
         super().__init__()
         self.cfg = cfg
         self.info = info
         try:
+            # Dynamically instantiate the model from the registry
             self.model: Any = model_registry.build(
                 str(cfg.model.type),
                 info.num_features,
@@ -39,36 +55,53 @@ class SheafLightningModule(LightningModule):
             raise ValueError(f"Unknown model type: {cfg.model.type!r}") from exc
 
     # ------------------------------------------------------------------
-    # Forward
+    # Step logic
     # ------------------------------------------------------------------
 
     def training_step(self, batch, batch_idx):
+        """Standard training step: forward pass + cross-entropy loss."""
         data = batch
+        # Forward pass through the sheaf model
         logits = self.model(data.x, data.edge_index)
+
+        # Calculate loss only on the training subset
         loss = F.cross_entropy(logits[data.train_mask], data.y[data.train_mask])
-        self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+
+        self.log(
+            "train_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=1,
+        )
         return loss
 
     def validation_step(self, batch, batch_idx) -> None:
+        """Validation step using the shared evaluation logic."""
         self._eval_step(batch, "val_mask", "val")
 
     def test_step(self, batch, batch_idx) -> None:
+        """Test step using the shared evaluation logic."""
         self._eval_step(batch, "test_mask", "test")
 
     # ------------------------------------------------------------------
-    # Shared evaluation
+    # Shared evaluation logic
     # ------------------------------------------------------------------
 
     def _eval_step(self, data, mask_attr: str, prefix: str) -> None:
-        # Evaluation uses the model's standard forward pass, without training dropout.
+        """Common evaluation logic for validation and testing.
+
+        Args:
+            data: The batch object (Data or HeteroData).
+            mask_attr: The name of the mask attribute (e.g., 'val_mask').
+            prefix: Metric prefix for logging (e.g., 'val').
+        """
+        # Forward pass (Dropout is disabled automatically by Lightning)
         logits = self.model(data.x, data.edge_index)
 
-        # If the model diverges numerically, log a sentinel loss/metric and
-        # skip scoring.
-        # Keep validation metrics visible in the progress bar; test metrics
-        # are logged only.
-        prog = prefix == "val"
-
+        # Handle numerical instability (Inf/NaN) gracefully
+        prog = prefix == "val"  # Show validation metrics in the progress bar
         if not torch.isfinite(logits).all():
             bad = 0.0 if self.info.metric == "acc" else 0.5
             self.log(
@@ -77,6 +110,7 @@ class SheafLightningModule(LightningModule):
                 on_step=False,
                 on_epoch=True,
                 prog_bar=prog,
+                batch_size=1,
             )
             self.log(
                 f"{prefix}_{self.info.metric}",
@@ -84,22 +118,31 @@ class SheafLightningModule(LightningModule):
                 on_step=False,
                 on_epoch=True,
                 prog_bar=prog,
+                batch_size=1,
             )
             return
 
-        # Select the requested split mask, then compute loss and metric on
-        # that split only.
+        # Filter predictions and ground truth based on the provided mask
         mask = getattr(data, mask_attr)
         loss = F.cross_entropy(logits[mask], data.y[mask])
         metric = self._compute_metric(logits, data.y, mask)
 
-        self.log(f"{prefix}_loss", loss, on_step=False, on_epoch=True, prog_bar=prog)
+        # Log results
+        self.log(
+            f"{prefix}_loss",
+            loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=prog,
+            batch_size=1,
+        )
         self.log(
             f"{prefix}_{self.info.metric}",
             metric,
             on_step=False,
             on_epoch=True,
             prog_bar=prog,
+            batch_size=1,
         )
 
     def _compute_metric(
@@ -108,16 +151,24 @@ class SheafLightningModule(LightningModule):
         labels: torch.Tensor,
         mask: torch.Tensor,
     ) -> float:
-        # Accuracy is the fraction of correct class predictions on the masked nodes.
+        """Calculate Accuracy or ROC-AUC depending on the dataset requirements.
+
+        Args:
+            logits: Unnormalized model outputs.
+            labels: Ground truth class indices.
+            mask: Boolean mask identifying nodes/graphs in the current split.
+        """
+        # Case 1: Multi-class Accuracy
         if self.info.metric == "acc":
             pred = logits[mask].argmax(dim=-1)
             return float(pred.eq(labels[mask]).sum().item()) / int(mask.sum().item())
 
+        # Case 2: ROC-AUC (used for heterophilous/binary tasks)
         # AUC is computed on CPU probabilities for sklearn compatibility.
         probs = F.softmax(logits[mask], dim=-1).detach().cpu()
         y_true = labels[mask].detach().cpu().numpy()
 
-        # roc_auc_score is undefined when the split contains only one class.
+        # Handle cases where the split doesn't have both classes (AUC is undefined)
         if np.unique(y_true).size < 2:
             return 0.5
 
@@ -134,10 +185,11 @@ class SheafLightningModule(LightningModule):
         )
 
     # ------------------------------------------------------------------
-    # Optimiser
+    # Optimizer configuration
     # ------------------------------------------------------------------
 
     def configure_optimizers(self):  # noqa: ANN201
+        """Setup Adam optimizer with parameters from the config."""
         return torch.optim.Adam(
             self.parameters(),
             lr=self.cfg.optim.lr,

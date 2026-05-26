@@ -3,9 +3,8 @@
 A clean PyTorch / PyG implementation library of  **Sheaf Neural Networks** comprising all variants and a benchmark suite with 20+ Datasets.
 
 **Copyright © 2026, _Sheaf Neural Networks as Message Passing_.**
-
-**Authors:** _Alessio Borgi_, _Gabriele Onorato_, _Luke Braithwaite_, _Mario Severino_,
-_Emanuele Mule_, _Dario Loi_, _Francesco Restuccia_, _Fabrizio Silvestri_, and _Pietro Liò_.
+Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite, Mario Severino,
+Emanuele Mule, Dario Loi, Francesco Restuccia, Fabrizio Silvestri, and Pietro Liò.
 
 
 ![Sheaf Neural Networks as Message Passing](img/MPSNN-1.png)
@@ -23,6 +22,7 @@ sheaf run --preset cora
 
 Use the library directly:
 
+
 ```python
 from sheaf_mpnn.nsd import NSDModel, NSDVariant
 
@@ -31,7 +31,7 @@ model = NSDModel(
     stalk_dim=4, hidden_dim=16, num_layers=2,
     variant=NSDVariant.GENERAL, alpha=1.0,
 )
-logits = model(x, edge_index)  # → [N, 7]
+logits = model(x, edge_index)  #  [N, 7]
 ```
 
 Use the layers directly when you want to build your own architecture:
@@ -133,10 +133,11 @@ Optuna settings, then run:
 
 ```bash
 sheaf sweep --yaml-path sweep.yaml --preset cora
-```
 
-The sweep CLI only accepts `--yaml-path` and `--preset`. All other options (number of
-trials, epochs, folds, storage) are set inside the YAML file.
+# Distributed sweep  add storage to the YAML under config:
+#   config:
+#     storage: sqlite:///sweep.db
+```
 
 Example `sweep.yaml`:
 
@@ -158,23 +159,35 @@ search_space:
 config:
   n_trials: 100
   study_name: nsd-cora
-  # storage: sqlite:///sweep.db  # uncomment for distributed / resumable sweeps
 ```
 
-Override the preset's dataset directly in the YAML with a `dataset:` block.
+Override the preset's dataset directly in the YAML with a `dataset:` block, or run
+distributed sweeps by adding `storage: sqlite:///sweep.db` under `config:`.
+## Development & Quality Control
 
-## Running Tests
+We use `uv` for dependency management and `prek` (a Rust-based git-hook framework) to ensure code quality.
+
+To run the full suite of checks (linting, formatting, type checking, and unit tests) in one command:
 
 ```bash
-uv run pytest              # full suite
-uvx ruff check .           # lint
-uvx ruff format --check .  # formatting
-uvx prek install           # install git hooks (defined in prek.toml)
+uv run prek run --all-files
+uv run pytest # Run the unit test suite
+uv run pytest -m integration # Run the integration tests
+```
+
+Alternatively, you can run the individual tools:
+
+```bash
+uv run ty check                  # Perform static type checking (via mypy)
+uv run ruff check --fix --unsafe-fixes # Lint and apply all automatic fixes
+uv run ruff format .              # Standardize code formatting
+uv run pytest                     # Run the unit test suite
+uv run pytest -m integration      # Run the integration tests
 ```
 
 ## Citation
 
-If you use this library in your research, please cite our forthcoming paper:
+If you use this library in your research, please cite our forthcoming paper (to be soon published):
 
 ```bibtex
 @unpublished{borgi2026sheafneuralnetworks,

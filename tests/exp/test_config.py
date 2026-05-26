@@ -27,7 +27,7 @@ class TestDatasetConfig:
     def test_defaults(self):
         cfg = DatasetConfig()
         assert cfg.name == "cora"
-        assert cfg.root == "exp/data"
+        assert cfg.root.endswith("exp/data")
 
     def test_custom_values(self):
         cfg = DatasetConfig(name="texas", root="/tmp/data")

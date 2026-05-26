@@ -12,9 +12,14 @@ so every field remains overridable from the command line.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import Literal
+
+_DATA_DIR: str = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "exp", "data")
+)
 
 
 class ModelType(StrEnum):
@@ -35,7 +40,7 @@ class DatasetConfig:
     """Dataset identity and storage location."""
 
     name: str = "cora"
-    root: str = "exp/data"
+    root: str = field(default_factory=lambda: _DATA_DIR)
 
 
 @dataclass

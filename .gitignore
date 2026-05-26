@@ -19,12 +19,17 @@ coverage.xml
 # OS
 .DS_Store
 
+# Jupyter
+.ipynb_checkpoints/
+
 # W&B local artefacts
 wandb/
 
 # Pre-computed split files (downloaded on demand via exp/gen_splits.py)
 # Ignore the whole folder so any shard format stays out of the index.
 src/exp/splits/*
+notebooks/exp
+notebooks/lightning_logs
 !src/exp/splits/.gitkeep
 
 # Downloaded dataset files (cached by PyG, downloaded on demand)

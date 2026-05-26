@@ -37,6 +37,10 @@ from torch_geometric.datasets import (
 )
 from torch_geometric.utils import coalesce, to_undirected
 
+_DATA_DIR: str = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "exp", "data")
+)
+
 # ---------------------------------------------------------------------------
 # Dataset metadata
 # ---------------------------------------------------------------------------
@@ -168,7 +172,7 @@ class FilteredWikipediaDataset(InMemoryDataset):
         torch.save(self.collate([data]), self.processed_paths[0])
 
 
-def load_dataset(name: str, root: str = "exp/data") -> tuple[Data, DatasetInfo]:
+def load_dataset(name: str, root: str = _DATA_DIR) -> tuple[Data, DatasetInfo]:
     """Load a benchmark dataset, downloading it automatically if needed.
 
     Args:
@@ -258,7 +262,7 @@ try:
         def __init__(
             self,
             name: str,
-            root: str = "exp/data",
+            root: str = _DATA_DIR,
             fold: int = 0,
             batch_size: int = 1,
             num_workers: int = 0,

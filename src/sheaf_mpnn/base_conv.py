@@ -84,9 +84,9 @@ class BaseSheafConv(MessagePassing):
 
         Each concrete subclass calls the matching ``apply_*_norm`` utility from
         ``sheaf_mpnn.utils``:
-            Diagonal   → apply_diagonal_norm(self_map, cross_map, ..., add_self_loops)
-            Orthogonal → apply_orthogonal_norm(cross_map, ..., add_self_loops)
-            Low-rank   → apply_general_norm(self_map, cross_map, ..., stalk_dim, ...)
+            Diagonal   → apply_diagonal_norm(self_map, cross_map, edge_index, num_nodes)
+            Orthogonal → apply_orthogonal_norm(cross_map, edge_index, num_nodes)
+            Low-rank   → apply_low_rank_norm(self_map, cross_map, ..., stalk_dim, ...)
             General    → apply_general_norm(self_map, cross_map, ..., stalk_dim, ...)
 
         Returns:

@@ -1,6 +1,6 @@
 # Sheaf Neural Networks – PyTorch Implementation
 
-A clean PyTorch / PyG implementation library of  **Sheaf Neural Networks** comprising all variants and a benchmark suite with 20+ Datasets.
+A clean PyTorch / PyG implementation library of  **Sheaf Neural Networks** comprising all variants and a benchmark suite with 14+ Datasets.
 
 **Copyright © 2026, _Sheaf Neural Networks as Message Passing_.**
 Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite, Mario Severino,

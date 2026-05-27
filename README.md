@@ -12,7 +12,7 @@ Emanuele Mule, Dario Loi, Francesco Restuccia, Fabrizio Silvestri, and Pietro Li
 ## Quick Start
 
 ```bash
-git clone https://github.com/<you>/pytorch-SheafNeuralNetworks.git
+git clone https://github.com/<you>/sheaf-mpnn.git
 cd pytorch-SheafNeuralNetworks
 uv sync && source .venv/bin/activate
 

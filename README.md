@@ -184,18 +184,3 @@ uv run ruff format .              # Standardize code formatting
 uv run pytest                     # Run the unit test suite
 uv run pytest -m integration      # Run the integration tests
 ```
-
-## Citation
-
-If you use this library in your research, please cite our forthcoming paper (to be soon published):
-
-```bibtex
-@unpublished{borgi2026sheafneuralnetworks,
-  title  = {Sheaf Neural Networks as Message Passing},
-  author = {Borgi, Alessio and Onorato, Gabriele and Braithwaite, Luke
-            and Severino, Mario and Mule, Emanuele and Loi, Dario
-            and Restuccia, Francesco and Silvestri, Fabrizio and Liò, Pietro},
-  year   = {2026},
-  note   = {Manuscript in preparation}
-}
-```

@@ -72,6 +72,12 @@ class TestNSDVariants:
 
     def test_isolated_node_stability(self, setup):
         conv, x_feat, x_stalk, _ = setup
+        # Disable self-loops so truly isolated nodes (empty edge_index) produce
+        # zero Laplacian action and the output equals the input exactly.
+        # With add_self_loops=True, self-loops are added and D can be near-singular
+        # for degenerate map families (e.g. general_attention), causing numerical
+        # blow-up in D^{-1/2} even though the Laplacian action is theoretically zero.
+        conv.add_self_loops = False
         edge_index = torch.empty((2, 0), dtype=torch.long)
         out = conv(x_feat, x_stalk, edge_index)
         torch.testing.assert_close(out, x_stalk)

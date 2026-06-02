@@ -51,7 +51,6 @@ def setup_torch(precision: str = "high", seed: int = 42) -> None:
     return None
 
 
-@torch.compile(dynamic=True)
 def batched_sym_matrix_pow(matrices: torch.Tensor, p: float) -> torch.Tensor:
     """Power of symmetric positive semi-definite matrices via eigendecomposition.
 
@@ -93,9 +92,9 @@ def batched_sym_matrix_pow_svd(matrices: torch.Tensor, p: float) -> torch.Tensor
     return matrix_power
 
 
-# NOTE: self-loops are assumed to already be present in edge_index by the caller;
-# the add_self_loops flag is forwarded here for API consistency but the degree
-# augmentation (+1 / +I) is NOT applied a second time inside these functions.
+# NOTE: self-loops are assumed to already be present in edge_index by the caller
+# (BaseNSDConv.forward adds them when add_self_loops=True). Do NOT add them again
+# inside these functions.
 def apply_diagonal_norm(
     self_map: torch.Tensor,
     cross_map: torch.Tensor,

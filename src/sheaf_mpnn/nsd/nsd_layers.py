@@ -8,7 +8,7 @@ from typing import Literal
 
 import torch
 from torch import nn
-from torch_geometric.utils import add_self_loops as pyg_add_self_loops
+from torch_geometric.utils import add_self_loops
 
 from sheaf_mpnn.base_conv import BaseSheafConv
 from sheaf_mpnn.utils import (
@@ -78,7 +78,7 @@ class BaseNSDConv(BaseSheafConv):
         num_nodes = x_stalk.size(0)
 
         if self.add_self_loops:
-            edge_index, _ = pyg_add_self_loops(edge_index, num_nodes=num_nodes)
+            edge_index, _ = add_self_loops(edge_index, num_nodes=num_nodes)
 
         src_idx, dst_idx = edge_index
 

@@ -184,3 +184,7 @@ uv run ruff format .              # Standardize code formatting
 uv run pytest                     # Run the unit test suite
 uv run pytest -m integration      # Run the integration tests
 ```
+
+## Citation
+
+If you use this library in your research, please cite our forthcoming paper: The paper is coming out soon...

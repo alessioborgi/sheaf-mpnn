@@ -3,8 +3,8 @@
 A clean PyTorch / PyG implementation library of  **Sheaf Neural Networks** comprising all variants and a benchmark suite with 14+ Datasets.
 
 **Copyright © 2026, _Sheaf Neural Networks as Message Passing_.**
-Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite, Mario Severino,
-Emanuele Mule, Dario Loi, Francesco Restuccia, Fabrizio Silvestri, and Pietro Liò.
+Authors: Alessio Borgi, Luke Braithwaite, Mario Severino,
+Emanuele Mule, Fabrizio Silvestri, and Pietro Liò.
 
 
 ![Sheaf Neural Networks as Message Passing](img/MPSNN-1.png)
@@ -188,3 +188,8 @@ uv run pytest -m integration      # Run the integration tests
 ## Citation
 
 If you use this library in your research, please cite our forthcoming paper: The paper is coming out soon...
+
+
+## Acknowledgments
+
+A special thank you to the additional contributors of this project: Gabriele Onorato and Dario Loi. 

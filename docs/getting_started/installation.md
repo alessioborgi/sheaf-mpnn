@@ -16,12 +16,14 @@ This installs both `sheaf_mpnn` (the core library) and `exp` (the experiment run
 python -c "import sheaf_mpnn; print(sheaf_mpnn.__version__)"
 ```
 
-## Optional extras
+W&B logging and the Optuna-W&B sweep integration are part of the base
+environment, so no extra install step is needed for sweeps.
 
-| Extra        | Command                              | Provides                                              |
+## Optional groups
+
+| Group        | Command                              | Provides                                              |
 |--------------|--------------------------------------|-------------------------------------------------------|
-| `wandb`      | `uv sync --extra wandb`              | W&B logger + Optuna-W&B integration                   |
-| `dev` group  | `uv sync --all-extras --dev`         | tests, ruff, mypy, pre-commit                         |
+| `dev` group  | `uv sync --dev`                      | tests, ruff, mypy, pre-commit                         |
 | `docs` group | `uv sync --group docs`               | Sphinx, pydata-sphinx-theme, MyST, autodoc extensions |
 
 The `docs` group is what CI uses to build this site; see

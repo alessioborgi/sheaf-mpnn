@@ -1,14 +1,18 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Pydantic models for the hyperparameter sweeps."""
 
 import dataclasses
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Discriminator, Field, model_validator
+from pydantic import (
+    BaseModel,
+    Discriminator,
+    Field,
+    model_validator,
+)
 
 
 class FloatParam(BaseModel):
@@ -27,7 +31,7 @@ class IntParam(BaseModel):
 
 class CategoricalParam(BaseModel):
     type: Literal["categorical"]
-    choices: list[str | int | float | list[int]]
+    choices: list[bool | str | int | float | list[int]]
 
 
 class OptunaConfig(BaseModel):
@@ -45,9 +49,8 @@ class OptunaConfig(BaseModel):
     wandb_project: str | None = None
     wandb_entity: str | None = None
     nruns_per_study: int = 0
-    """WandB runs per Optuna study.  0 (default) creates one WandB run per trial,
-    giving a full table of 100 runs for 100 trials with all hyperparameters logged.
-    Set to 1 to log all trials as steps in a single run instead."""
+    """Deprecated and ignored: sweeps always log one WandB run per trial
+    (as_multirun), so each trial is its own row in the project table."""
     cuda: int = 0
     seed: int = 42
 

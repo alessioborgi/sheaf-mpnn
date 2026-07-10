@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Tests for exp/registries/datasets.py."""
 
@@ -11,16 +10,18 @@ import pytest
 
 from exp.registries.datasets import DatasetEntry, DatasetRegistry, dataset_registry
 
-# All 14 datasets expected in the registry.
+# All 16 datasets expected in the registry.
 _ALL = {
     "cora",
     "citeseer",
+    "pubmed",
     "chameleon",
     "squirrel",
     "chameleon_filtered",
     "squirrel_filtered",
     "cornell",
     "texas",
+    "wisconsin",
     "film",
     "amazon_ratings",
     "minesweeper",
@@ -29,7 +30,17 @@ _ALL = {
     "tolokers",
 }
 
-_NPZ = {"cora", "citeseer", "chameleon", "squirrel", "cornell", "texas", "film"}
+_NPZ = {
+    "cora",
+    "citeseer",
+    "pubmed",
+    "chameleon",
+    "squirrel",
+    "cornell",
+    "texas",
+    "wisconsin",
+    "film",
+}
 _ROC_AUC = {"minesweeper", "questions", "tolokers"}
 
 

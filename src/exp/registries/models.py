@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Model registry: factory-based construction of sheaf models from config."""
 
@@ -9,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from torch import nn
@@ -60,6 +60,21 @@ class ModelRegistry(Registry[str, ModelEntry]):
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_variant[E: Enum](enum_cls: type[E], name: str) -> E:
+    try:
+        return enum_cls[name.upper()]
+    except KeyError:
+        valid = [v.name.lower() for v in enum_cls]
+        raise ValueError(
+            f"Invalid variant {name!r} for {enum_cls.__name__}. Valid choices: {valid}"
+        ) from None
+
+
+# ---------------------------------------------------------------------------
 # Factory functions
 # ---------------------------------------------------------------------------
 
@@ -75,14 +90,20 @@ def _build_nsd(
         stalk_dim=cfg.stalk_dim,
         hidden_dim=cfg.hidden_dim,
         num_layers=cfg.num_layers,
-        variant=NSDVariant[cfg.variant.upper()],
+        variant=_parse_variant(NSDVariant, cfg.variant),
         alpha=cfg.alpha,
+        learn_alpha=cfg.learn_alpha,
         rank=cfg.rank,
         orth_strategy=cfg.orth_strategy,
         input_dropout=reg.input_dropout,
         dropout=reg.dropout,
         normalize_output=cfg.normalize_output,
         jknet=cfg.jknet,
+        add_lp=cfg.add_lp,
+        add_hp=cfg.add_hp,
+        sparse_learner=cfg.sparse_learner,
+        second_linear=cfg.second_linear,
+        use_edge_weights=cfg.edge_weights,
     )
 
 

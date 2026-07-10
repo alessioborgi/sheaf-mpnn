@@ -1,9 +1,9 @@
 # Example NSD sweep on Cora.
 #
 # Run with:
-#   python -m exp.sweeps.sweep --yaml-path configs/nsd_cora_sweep.yaml --preset cora
+#   python -m exp.sweeps.sweep --yaml-path configs/cora/nsd/sweep.yaml --preset cora
 #
-# n_trials and n_seeds_per_trial are set here under config: — no CLI flags needed.
+# n_trials and n_seeds_per_trial are set here under config:  no CLI flags needed.
 
 model: nsd
 
@@ -51,12 +51,34 @@ search_space:
     high: 0.1
     log: true
 
+  add_lp:
+    type: categorical
+    choices: [false, true]
+  add_hp:
+    type: categorical
+    choices: [false, true]
+  sparse_learner:
+    type: categorical
+    choices: [false, true]
+  second_linear:
+    type: categorical
+    choices: [false, true]
+  sheaf_decay:
+    type: float
+    low: 0.000001
+    high: 0.1
+    log: true
+
+  learn_alpha:
+    type: categorical
+    choices: [false, true]
+
 config:
   n_trials: 100
-  n_seeds_per_trial: 1       # increase to 3-5 for variance-aware tuning
+  n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
   std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
   study_name: nsd-cora
   seed: 42
-  # storage: sqlite:///nsd_cora.db   # uncomment for distributed / resumable sweeps
-  # wandb_project: nsd-cora          # uncomment to log to Weights & Biases
-  # wandb_entity: your-team
+  storage: sqlite:///nsd_cora.db   # uncomment for distributed / resumable sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: sheaf-mpnn

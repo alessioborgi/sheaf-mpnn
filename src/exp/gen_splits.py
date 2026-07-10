@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Generate or download pre-computed 60/20/20 train/val/test splits.
 
@@ -125,7 +124,7 @@ def download_canonical_splits(
                 f"train={train_n:4d}  val={val_n:4d}  test={test_n:4d}  "
                 f"[dim]<- {url}[/dim]"
             )
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             if os.path.exists(out_path):
                 os.remove(out_path)
             raise RuntimeError(
@@ -205,7 +204,7 @@ def splits(cfg: SplitsConfig) -> None:
         if name not in valid:
             _console.print(
                 f"[yellow]Warning:[/yellow] '{name}' does not use NPZ splits"
-                " — skipping."
+                " - skipping."
             )
             continue
 
@@ -233,11 +232,11 @@ def splits(cfg: SplitsConfig) -> None:
 # ---------------------------------------------------------------------------
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     """Entry point for ``python -m exp.gen_splits``."""
     cfg = tyro.cli(SplitsConfig)
     splits(cfg)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

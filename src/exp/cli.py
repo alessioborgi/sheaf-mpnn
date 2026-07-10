@@ -1,9 +1,8 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
-"""Unified ``sheaf`` CLI — thin dispatch layer over exp.run, exp.gen_splits,
+"""Unified ``sheaf`` CLI - thin dispatch layer over exp.run, exp.gen_splits,
 and exp.sweeps.sweep.
 
 Usage
@@ -46,6 +45,7 @@ def main() -> None:
             f"\nUnknown subcommand {subcmd!r}. Choose from: run, splits, sweep"
         )
 
+    # Update argv so each subcommand's own tyro.cli sees a clean argument list.
     sys.argv = [f"sheaf {subcmd}"] + rest
 
     if subcmd == "run":
@@ -78,10 +78,10 @@ def _print_help() -> None:
             "[bold]sheaf splits[/bold]  Download or generate dataset splits\n"
             "[bold]sheaf sweep[/bold]   YAML-driven hyperparameter sweep\n\n"
             "Add [cyan]--help[/cyan] after a subcommand for per-command options.",
-            title="sheaf — Sheaf Neural Networks CLI",
+            title="sheaf - Sheaf Neural Networks CLI",
         )
     )
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

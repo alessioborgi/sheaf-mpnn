@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Tests for the preset registry."""
 
@@ -33,8 +32,8 @@ class TestPresetRegistryContents:
         assert base.issubset(registered)
 
     def test_total_preset_count(self):
-        # 14 base NSD + 14*6 NSD variant presets
-        assert len(preset_registry.list_keys()) > 14
+        # 16 base NSD aliases + 16*6 NSD variant presets
+        assert len(preset_registry.list_keys()) > 16
 
     def test_unknown_preset_raises(self):
         with pytest.raises(KeyError):
@@ -65,17 +64,27 @@ class TestPresetValues:
         assert cfg.model.stalk_dim == 4
         assert cfg.model.type == ModelType.NSD
 
-    def test_texas_uses_acc_stop_strategy(self):
+    def test_texas_is_bodnar_config(self):
         cfg = preset_registry.get("texas")
-        assert cfg.optim.stop_strategy == "acc"
+        # Bodnar's run_texas.sh: BundleSheaf, sparse learner, default budget.
+        assert cfg.optim.stop_strategy == "loss"
+        assert cfg.optim.epochs == 1500
+        assert cfg.model.variant == "orthogonal"
+        assert cfg.model.sparse_learner and cfg.model.edge_weights
+        assert cfg.model.orth_strategy == "householder"
+        assert cfg.model.learn_alpha is False
 
     def test_film_uses_diagonal_variant(self):
         cfg = preset_registry.get("film")
         assert cfg.model.variant == "diagonal"
 
-    def test_chameleon_uses_orthogonal_variant(self):
+    def test_chameleon_is_bodnar_config(self):
         cfg = preset_registry.get("chameleon")
-        assert cfg.model.variant == "orthogonal"
+        # Bodnar's run_chameleon.sh: DiagSheaf with add_lp and second_linear.
+        assert cfg.model.variant == "diagonal"
+        assert cfg.model.add_lp and cfg.model.second_linear
+        assert cfg.optim.stop_strategy == "acc"
+        assert cfg.optim.early_stopping == 100
 
     def test_preset_returns_config_instance(self):
         for name in ["cora", "texas", "film", "amazon_ratings"]:
@@ -83,7 +92,7 @@ class TestPresetValues:
 
 
 class TestPresetRegistryIsolation:
-    """Each PresetRegistry instance is independent — useful in tests."""
+    """Each PresetRegistry instance is independent - useful in tests."""
 
     def test_fresh_registry_is_empty(self):
         r = PresetRegistry()

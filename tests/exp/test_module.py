@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Tests for exp/module.py -- SheafLightningModule training and evaluation logic."""
 
@@ -97,7 +96,7 @@ def _make_module(metric: str = "acc", **cfg_kwargs) -> SheafLightningModule:
     cfg = _make_config(**cfg_kwargs)
     info = _make_info(metric=metric)
     mod = SheafLightningModule(cfg, info)
-    mod.log = MagicMock()  # ty: ignore[invalid-assignment] — test mocking
+    mod.log = MagicMock()  # ty: ignore[invalid-assignment]  test mocking
     return mod
 
 
@@ -241,8 +240,14 @@ class TestEvalSteps:
 
     def test_roc_auc_metric_logged_correctly(self, batch):
         mod = _make_module(metric="roc_auc")
-        # roc_auc expects binary labels; use 2-class setup
-        batch.y = torch.randint(0, 2, (batch.num_nodes,))
+        # Guarantee both classes present so ROC-AUC is well-defined.
+        n = batch.num_nodes
+        batch.y = torch.cat(
+            [
+                torch.zeros(n // 2, dtype=torch.long),
+                torch.ones(n - n // 2, dtype=torch.long),
+            ]
+        )
         mod.validation_step(batch, 0)
         logged_keys = [call.args[0] for call in cast(MagicMock, mod.log).call_args_list]
         assert "val_roc_auc" in logged_keys
@@ -251,7 +256,7 @@ class TestEvalSteps:
         module.validation_step(batch, 0)
         logged = {call.args[0]: call.args[1] for call in module.log.call_args_list}
         val_loss = logged["val_loss"]
-        assert torch.isfinite(torch.tensor(float(val_loss)))
+        assert torch.isfinite(val_loss.detach())
 
     def test_eval_step_is_deterministic(self, batch):
         """validation_step in eval mode must produce the same logged metrics twice."""
@@ -395,7 +400,7 @@ class TestComputeMetricROCAUC:
         cfg = _make_config()
         info = DatasetInfo("syn", 8, 3, 10, "roc_auc", "npz_file")
         mod = SheafLightningModule(cfg, info)
-        mod.log = MagicMock()  # ty: ignore[invalid-assignment] — test mocking
+        mod.log = MagicMock()  # ty: ignore[invalid-assignment]  test mocking
         torch.manual_seed(2)
         logits = torch.randn(30, 3)
         labels = torch.randint(0, 3, (30,))

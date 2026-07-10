@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Tests for exp/config.py -- typed configuration dataclasses."""
 
@@ -27,7 +26,7 @@ class TestDatasetConfig:
     def test_defaults(self):
         cfg = DatasetConfig()
         assert cfg.name == "cora"
-        assert cfg.root.endswith("exp/data")
+        assert cfg.root == "exp/data"
 
     def test_custom_values(self):
         cfg = DatasetConfig(name="texas", root="/tmp/data")
@@ -80,6 +79,7 @@ class TestOptimConfig:
         assert cfg.epochs == 1000
         assert cfg.early_stopping == 200
         assert cfg.stop_strategy == "loss"
+        assert cfg.batch_size == 1
 
     @pytest.mark.parametrize("strategy", ["loss", "acc"])
     def test_stop_strategies(self, strategy):
@@ -87,10 +87,11 @@ class TestOptimConfig:
         assert cfg.stop_strategy == strategy
 
     def test_custom_lr_and_epochs(self):
-        cfg = OptimConfig(lr=1e-3, epochs=500, early_stopping=50)
+        cfg = OptimConfig(lr=1e-3, epochs=500, early_stopping=50, batch_size=32)
         assert cfg.lr == pytest.approx(1e-3)
         assert cfg.epochs == 500
         assert cfg.early_stopping == 50
+        assert cfg.batch_size == 32
 
 
 class TestCVConfig:
@@ -111,10 +112,18 @@ class TestHardwareConfig:
     def test_defaults(self):
         cfg = HardwareConfig()
         assert cfg.cuda == 0
+        assert cfg.num_workers == 0
+        assert cfg.pin_memory is True
+        assert cfg.persistent_workers is False
 
-    def test_custom_cuda(self):
-        cfg = HardwareConfig(cuda=1)
+    def test_custom_values(self):
+        cfg = HardwareConfig(
+            cuda=1, num_workers=4, pin_memory=False, persistent_workers=True
+        )
         assert cfg.cuda == 1
+        assert cfg.num_workers == 4
+        assert cfg.pin_memory is False
+        assert cfg.persistent_workers is True
 
 
 class TestWandBConfig:

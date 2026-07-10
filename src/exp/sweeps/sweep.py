@@ -1,12 +1,11 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
-"""YAML-driven hyperparameter sweep using Optuna and the model registry.
+r"""YAML-driven hyperparameter sweep using Optuna and the model registry.
 
-Usage::
-
+Usage
+-----
     # Via the unified CLI (recommended):
     sheaf sweep --yaml-path nsd_cora.yaml --preset cora
 
@@ -16,12 +15,14 @@ Usage::
     # Without a preset (uses config defaults):
     sheaf sweep --yaml-path nsd_cora.yaml
 
-Example YAML:
+    # Distributed sweep  add storage under config in the YAML:
+    #   config:
+    #     storage: sqlite:///sweep.db
 
-.. code-block:: yaml
-
+Example YAML
+------------
     model: nsd
-    dataset:
+    dataset:              # optional  overrides the preset's dataset
       name: texas
       root: exp/data
     search_space:
@@ -40,13 +41,18 @@ Example YAML:
     config:
       n_trials: 100
       study_name: nsd-texas
-      storage: sqlite:///sweep.db
+      storage: sqlite:///sweep.db   # optional, for distributed runs
 """
 
 from __future__ import annotations
 
 import dataclasses
+import logging
 import random
+import tempfile
+import time
+import warnings
+from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +61,8 @@ import torch
 import tyro
 import yaml
 from lightning import Trainer
-from lightning.pytorch.callbacks import EarlyStopping
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.utilities.warnings import PossibleUserWarning
 from rich.console import Console
 
 from exp.config import (
@@ -81,8 +88,10 @@ _console = Console()
 
 _PruningCb: type | None = None
 try:
-    from optuna_integration import PyTorchLightningPruningCallback as _PruningCb
-except ImportError:
+    from optuna_integration import (
+        PyTorchLightningPruningCallback as _PruningCb,
+    )
+except ImportError:  # pragma: no cover
     try:
         from optuna.integration import (  # type: ignore[no-redef]
             PyTorchLightningPruningCallback as _PruningCb,
@@ -149,6 +158,39 @@ def _build_cfg(
     return dataclasses.replace(base_cfg, model=new_model, reg=new_reg, optim=new_optim)
 
 
+def _silence_training_noise() -> None:
+    """Per-fold restore/GPU banners and full-batch dataloader hints drown the
+    sweep console; drop Lightning INFO logs and the known-benign warnings.
+    """
+    logging.getLogger("lightning.pytorch").setLevel(logging.WARNING)
+    # Full-batch graph datasets: one Data object per epoch, workers are useless.
+    warnings.filterwarnings("ignore", category=PossibleUserWarning)
+    # Optuna pruning reports once per epoch; validate/test re-report the step.
+    warnings.filterwarnings(
+        "ignore", message="The reported value is ignored because this"
+    )
+
+
+def _start_resource_tracking(device: int) -> float:
+    """Reset the CUDA peak-memory counter and mark the fold start time."""
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats(device)
+    return time.perf_counter()
+
+
+def _fold_resource_metrics(start: float, device: int, epochs: int) -> dict[str, float]:
+    """Wall-clock and peak-GPU-memory cost of one training fold."""
+    elapsed = time.perf_counter() - start
+    metrics = {
+        "fit_time_s": elapsed,
+        "epoch_time_s": elapsed / max(int(epochs), 1),
+        "epochs_trained": float(epochs),
+    }
+    if torch.cuda.is_available():
+        metrics["peak_gpu_mem_mb"] = torch.cuda.max_memory_allocated(device) / 2**20
+    return metrics
+
+
 # ---------------------------------------------------------------------------
 # Optuna objective
 # ---------------------------------------------------------------------------
@@ -166,7 +208,8 @@ def _run_trial(
     cfg = _build_cfg(base_cfg, sweep_cfg.model, params)
     optuna_cfg = sweep_cfg.config
 
-    val_metrics: list[float] = []
+    seed_metrics: dict[str, list[float]] = defaultdict(list)
+    primary_key: str = ""
     for seed_offset in range(optuna_cfg.n_seeds_per_trial):
         seed = optuna_cfg.seed + seed_offset
         random.seed(seed)
@@ -177,40 +220,89 @@ def _run_trial(
         dm = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=fold)
         dm.setup()
 
-        monitor = (
-            "val_loss" if cfg.optim.stop_strategy == "loss" else f"val_{dm.info.metric}"
-        )
+        primary_key = f"val_{dm.info.metric}"
+        monitor = "val_loss" if cfg.optim.stop_strategy == "loss" else primary_key
         mode = "min" if cfg.optim.stop_strategy == "loss" else "max"
         module = SheafLightningModule(cfg, dm.info)
 
-        callbacks: list = [
-            EarlyStopping(
+        # Evaluate best-val-epoch weights, not last-epoch weights: with
+        # patience 200 the final model is far past its validation peak.
+        with tempfile.TemporaryDirectory() as ckpt_dir:
+            ckpt_cb = ModelCheckpoint(
+                dirpath=ckpt_dir,
                 monitor=monitor,
-                patience=cfg.optim.early_stopping,
                 mode=mode,
+                save_top_k=1,
+                filename="best",
             )
-        ]
-        if _PruningCb is not None:
-            callbacks.append(_PruningCb(trial, monitor=monitor))
+            callbacks: list = [
+                EarlyStopping(
+                    monitor=monitor,
+                    patience=cfg.optim.early_stopping,
+                    mode=mode,
+                ),
+                ckpt_cb,
+            ]
+            if _PruningCb is not None:
+                callbacks.append(_PruningCb(trial, monitor=monitor))
 
-        trainer = Trainer(
-            max_epochs=cfg.optim.epochs,
-            callbacks=callbacks,
-            accelerator="gpu" if torch.cuda.is_available() else "cpu",
-            devices=[optuna_cfg.cuda] if torch.cuda.is_available() else "auto",
-            enable_progress_bar=False,
-            enable_model_summary=False,
-            enable_checkpointing=False,
-            logger=False,
-            log_every_n_steps=1,
+            trainer = Trainer(
+                max_epochs=cfg.optim.epochs,
+                callbacks=callbacks,
+                accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                devices=[optuna_cfg.cuda] if torch.cuda.is_available() else "auto",
+                enable_progress_bar=False,
+                enable_model_summary=False,
+                logger=False,
+                log_every_n_steps=1,
+            )
+            start = _start_resource_tracking(optuna_cfg.cuda)
+            trainer.fit(module, dm)
+            perf = _fold_resource_metrics(start, optuna_cfg.cuda, trainer.current_epoch)
+
+            val_result = trainer.validate(module, dm, ckpt_path="best", verbose=False)[
+                0
+            ]
+            # Reference protocol: also record the TEST metrics at the
+            # best-validation checkpoint for every trial (never used for
+            # selection; the Optuna objective stays validation-based).
+            test_result = trainer.test(module, dm, ckpt_path="best", verbose=False)[0]
+        for key, value in {**val_result, **test_result, **perf}.items():
+            seed_metrics[key].append(float(value))
+
+    # Aggregate all metrics across seeds and store as trial attributes for W&B;
+    # std is always reported (0.0 for a single seed).
+    aggregated: dict[str, float] = {}
+    for key, values in seed_metrics.items():
+        aggregated[f"mean_{key}"] = float(np.mean(values))
+        aggregated[f"std_{key}"] = (
+            float(np.std(values)) if optuna_cfg.n_seeds_per_trial > 1 else 0.0
         )
-        trainer.fit(module, dm)
+        trial.set_user_attr(f"mean_{key}", aggregated[f"mean_{key}"])
+        trial.set_user_attr(f"std_{key}", aggregated[f"std_{key}"])
 
-        val_result = trainer.validate(module, dm, verbose=False)
-        val_metrics.append(float(val_result[0].get(f"val_{dm.info.metric}", 0.0)))
+    # When trials run under as_multirun wandb tracking, attach the aggregates
+    # to this trial's own run (one row per trial in the project table).
+    try:
+        import wandb
 
-    mean = float(np.mean(val_metrics))
-    std = float(np.std(val_metrics)) if optuna_cfg.n_seeds_per_trial > 1 else 0.0
+        if wandb.run is not None:
+            # Identify the run in the project table: dataset, family, map type.
+            wandb.log(
+                aggregated
+                | {
+                    "n_seeds": optuna_cfg.n_seeds_per_trial,
+                    "dataset": cfg.dataset.name,
+                    "model": sweep_cfg.model,
+                    "transport_type": cfg.model.variant,
+                }
+            )
+    except ImportError:
+        pass
+
+    primary_values = seed_metrics.get(primary_key, [0.0])
+    mean = float(np.mean(primary_values))
+    std = float(np.std(primary_values)) if optuna_cfg.n_seeds_per_trial > 1 else 0.0
     trial.set_user_attr("val_mean", mean)
     trial.set_user_attr("val_std", std)
     trial.set_user_attr("n_seeds", optuna_cfg.n_seeds_per_trial)
@@ -233,19 +325,23 @@ def _make_wandb_callbacks(base_cfg: Config, sweep_cfg: SweepConfig) -> list:
         )
         return []
 
-    dm_meta = SheafDataModule(base_cfg.dataset.name, root=base_cfg.dataset.root, fold=0)
-    dm_meta.setup()
+    # The metric name lives in the registry; do not load the dataset for it.
+    from exp.registries.datasets import dataset_registry
 
-    kwargs: dict = {
-        "metric_name": f"val_{dm_meta.info.metric}",
+    metric = dataset_registry.get(base_cfg.dataset.name).metric  # pragma: no cover
+
+    kwargs: dict = {  # pragma: no cover
+        "metric_name": f"val_{metric}",
+        # One wandb run per Optuna trial: every trial gets its own row in the
+        # project table, grouped under the study name.
+        "as_multirun": True,
         "wandb_kwargs": {
             "project": sweep_cfg.config.wandb_project,
             "entity": sweep_cfg.config.wandb_entity,
+            "group": sweep_cfg.config.study_name,
         },
     }
-    if sweep_cfg.config.nruns_per_study:
-        kwargs["nruns_per_study"] = sweep_cfg.config.nruns_per_study
-    return [WeightsAndBiasesCallback(**kwargs)]
+    return [WeightsAndBiasesCallback(**kwargs)]  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------
@@ -258,6 +354,7 @@ def sweep(
     preset: str | None = None,
 ) -> None:
     """Run a YAML-driven Optuna hyperparameter sweep."""
+    _silence_training_noise()
     raw = yaml.safe_load(yaml_path.read_text())
     sweep_cfg = SweepConfig.model_validate(raw)
     base_cfg = preset_registry.get_or_default(preset)
@@ -274,12 +371,15 @@ def sweep(
     setup_torch(precision="high", seed=sweep_cfg.config.seed)
 
     pruner = optuna.pruners.MedianPruner(n_startup_trials=10, n_warmup_steps=50)
+    # Seeded sampler: colleagues reproduce the same trial sequence.
+    sampler = optuna.samplers.TPESampler(seed=sweep_cfg.config.seed)
     study = optuna.create_study(
         direction="maximize",
         study_name=sweep_cfg.config.study_name,
         storage=sweep_cfg.config.storage,
         load_if_exists=True,
         pruner=pruner,
+        sampler=sampler,
     )
 
     wandb_callbacks = (
@@ -287,10 +387,22 @@ def sweep(
         if sweep_cfg.config.wandb_project
         else []
     )
+
+    def objective(trial: optuna.Trial) -> float:
+        return _run_trial(trial, sweep_cfg, base_cfg)
+
+    if wandb_callbacks:
+        # track_in_wandb makes each trial's own run active inside the
+        # objective, so metrics logged there land on that trial's row.
+        objective = wandb_callbacks[0].track_in_wandb()(objective)
+
+    # Diverged trials (non-finite maps -> LinAlgError/RuntimeError) are marked
+    # FAILED instead of killing the whole sweep.
     study.optimize(
-        lambda trial: _run_trial(trial, sweep_cfg, base_cfg),
+        objective,
         n_trials=sweep_cfg.config.n_trials,
         callbacks=wandb_callbacks,
+        catch=(RuntimeError,),
     )
 
     best = study.best_trial
@@ -310,6 +422,24 @@ def sweep(
 
     _save_best_config(sweep_cfg, base_cfg, best.params)
 
+    _console.print("\n[bold]Final test evaluation — best config, 10 folds[/bold]")
+    test_results = _run_final_test(sweep_cfg, base_cfg, best.params, n_seeds=10)
+    _console.print("  [bold]test results:[/bold]")
+    for key in sorted(k for k in test_results if k.startswith("mean_")):
+        metric = key[len("mean_") :]
+        std_val = test_results.get(f"std_{metric}", 0.0)
+        _console.print(f"    {metric}: {test_results[key]:.4f} ± {std_val:.4f}")
+
+    if sweep_cfg.config.wandb_project:
+        _log_final_test_to_wandb(
+            sweep_cfg,
+            best.params,
+            test_results,
+            n_seeds=10,
+            dataset=base_cfg.dataset.name,
+            transport_type=str(best.params.get("variant", base_cfg.model.variant)),
+        )
+
 
 def _save_best_config(
     sweep_cfg: SweepConfig,
@@ -323,6 +453,114 @@ def _save_best_config(
     output = {"model": sweep_cfg.model, "best_params": best_params}
     yaml.dump(output, Path(filename).open("w"), default_flow_style=False)
     _console.print(f"\nBest config saved to [cyan]{filename}[/cyan]")
+
+
+def _run_final_test(
+    sweep_cfg: SweepConfig,
+    base_cfg: Config,
+    best_params: dict,
+    n_seeds: int = 10,
+) -> dict[str, float]:
+    """Retrain best config from scratch over n_seeds and evaluate on test split."""
+    cfg = _build_cfg(base_cfg, sweep_cfg.model, best_params)
+    optuna_cfg = sweep_cfg.config
+    seed_metrics: dict[str, list[float]] = defaultdict(list)
+
+    for seed_offset in range(n_seeds):
+        seed = optuna_cfg.seed + seed_offset
+        random.seed(seed)
+        np.random.seed(seed)  # noqa: NPY002
+        torch.manual_seed(seed)
+
+        fold = seed_offset % cfg.cv.folds
+        dm = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=fold)
+        dm.setup()
+
+        monitor = (
+            "val_loss" if cfg.optim.stop_strategy == "loss" else f"val_{dm.info.metric}"
+        )
+        mode = "min" if cfg.optim.stop_strategy == "loss" else "max"
+        module = SheafLightningModule(cfg, dm.info)
+
+        # Test the best-val-epoch checkpoint, mirroring the reference protocol
+        # (test accuracy is read at the epoch with the best validation score).
+        with tempfile.TemporaryDirectory() as ckpt_dir:
+            ckpt_cb = ModelCheckpoint(
+                dirpath=ckpt_dir,
+                monitor=monitor,
+                mode=mode,
+                save_top_k=1,
+                filename="best",
+            )
+            trainer = Trainer(
+                max_epochs=cfg.optim.epochs,
+                callbacks=[
+                    EarlyStopping(
+                        monitor=monitor,
+                        patience=cfg.optim.early_stopping,
+                        mode=mode,
+                    ),
+                    ckpt_cb,
+                ],
+                accelerator="gpu" if torch.cuda.is_available() else "cpu",
+                devices=[optuna_cfg.cuda] if torch.cuda.is_available() else "auto",
+                enable_progress_bar=False,
+                enable_model_summary=False,
+                logger=False,
+                log_every_n_steps=1,
+            )
+            start = _start_resource_tracking(optuna_cfg.cuda)
+            trainer.fit(module, dm)
+            perf = _fold_resource_metrics(start, optuna_cfg.cuda, trainer.current_epoch)
+            test_result = trainer.test(module, dm, ckpt_path="best", verbose=False)[0]
+        for key, value in {**test_result, **perf}.items():
+            seed_metrics[key].append(float(value))
+
+    aggregated: dict[str, float] = {}
+    for key, values in seed_metrics.items():
+        aggregated[f"mean_{key}"] = float(np.mean(values))
+        aggregated[f"std_{key}"] = float(np.std(values))
+    return aggregated
+
+
+def _log_final_test_to_wandb(
+    sweep_cfg: SweepConfig,
+    best_params: dict,
+    results: dict[str, float],
+    n_seeds: int,
+    dataset: str,
+    transport_type: str,
+) -> None:
+    try:
+        import wandb
+    except ImportError:
+        _console.print(
+            "[yellow]wandb not installed; skipping W&B logging for final test.[/yellow]"
+        )
+        return
+
+    run = wandb.init(
+        project=sweep_cfg.config.wandb_project,
+        entity=sweep_cfg.config.wandb_entity,
+        name=f"{sweep_cfg.config.study_name}_final_test",
+        config={
+            **best_params,
+            "n_seeds": n_seeds,
+            "dataset": dataset,
+            "model": sweep_cfg.model,
+            "transport_type": transport_type,
+        },
+        job_type="final_test",
+    )
+    wandb.log(
+        results
+        | {
+            "dataset": dataset,
+            "model": sweep_cfg.model,
+            "transport_type": transport_type,
+        }
+    )
+    run.finish()  # type: ignore[union-attr]
 
 
 # ---------------------------------------------------------------------------
@@ -344,5 +582,5 @@ def main(
     sweep(yaml_path=yaml_path, preset=preset)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     tyro.cli(main)

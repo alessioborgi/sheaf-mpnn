@@ -1,6 +1,6 @@
 # Sheaf Neural Networks – PyTorch Implementation
 
-A clean PyTorch / PyG implementation library of  **Sheaf Neural Networks** comprising all variants and a benchmark suite with 14+ Datasets.
+A clean PyTorch / PyG implementation library of  **Sheaf Neural Networks** comprising all variants and a benchmark suite with 16 Datasets.
 
 **Copyright © 2026, _Sheaf Neural Networks as Message Passing_.**
 Authors: Alessio Borgi, Luke Braithwaite, Mario Severino,
@@ -59,26 +59,27 @@ x_stalk = layer(x_feat, x_stalk, edge_index)       # [N, d, hidden_dim]
 ## Installation
 
 ```bash
-uv sync                   # core dependencies
-uv sync --extra wandb     # + Weights & Biases / Optuna-WandB
+uv sync                   # core dependencies (includes W&B / Optuna-WandB)
 ```
 
 **Requirements:** Python ≥ 3.13, PyTorch ≥ 2.4, PyTorch Geometric ≥ 2.5, Lightning ≥ 2.3.
 
 ## Datasets
 
-All 14 datasets download automatically into `exp/data/` on first use.
+All 16 datasets download automatically into `exp/data/` on first use.
 
 | Dataset | Nodes | Edges | Features | Classes | Metric | Split |
 |---------|------:|------:|--------:|--------:|:------:|-------|
 | `cora` | 2 708 | 10 556 | 1 433 | 7 | Acc | Geom-GCN |
 | `citeseer` | 3 327 | 9 104 | 3 703 | 6 | Acc | Geom-GCN |
+| `pubmed` | 19 717 | 88 648 | 500 | 3 | Acc | Geom-GCN |
 | `chameleon` | 2 277 | 36 101 | 2 325 | 5 | Acc | Geom-GCN |
 | `chameleon_filtered` | 890 | 8 854 | 2 325 | 5 | Acc | Geom-GCN filtered |
 | `squirrel` | 5 201 | 217 073 | 2 089 | 5 | Acc | Geom-GCN |
 | `squirrel_filtered` | 2 223 | 47 138 | 2 089 | 5 | Acc | Geom-GCN filtered |
 | `cornell` | 183 | 298 | 1 703 | 5 | Acc | Geom-GCN |
 | `texas` | 183 | 325 | 1 703 | 5 | Acc | Geom-GCN |
+| `wisconsin` | 251 | 515 | 1 703 | 5 | Acc | Geom-GCN |
 | `film` | 7 600 | 30 019 | 932 | 5 | Acc | Geom-GCN |
 | `amazon_ratings` | 24 492 | 186 100 | 300 | 5 | Acc | Platonov |
 | `minesweeper` | 10 000 | 39 402 | 7 | 2 | ROC-AUC | Platonov |
@@ -94,7 +95,14 @@ All variants share the same `encoder → NSD layers → decoder` architecture; o
 |---------|------|:-------------:|-------|
 | Diagonal | `--model.variant diagonal` | O(d) | Lightweight baseline |
 | General | `--model.variant general` | O(d²) | Most expressive |
-| Orthogonal | `--model.variant orthogonal` | O(d(d−1)/2) | Numerically stable via Cayley transform |
+| Orthogonal | `--model.variant orthogonal` | O(d(d−1)/2) | Cayley / Householder parameterisations (`--model.orth-strategy`) |
+| Low-rank | `--model.variant low_rank` | O(2dr) | Rank-r restriction maps (`--model.rank`) |
+
+Reference-parity flags from Bodnar et al. are available on every variant:
+`--model.add-lp` / `--model.add-hp` (fixed low/high-pass stalk channels),
+`--model.sparse-learner`, `--model.second-linear`, `--model.edge-weights`
+(orthogonal only), `--model.no-learn-alpha` (fixed diffusion step), and
+`--optim.sheaf-decay` (separate weight decay for the sheaf learners).
 
 ## Running Experiments
 
@@ -134,7 +142,10 @@ Optuna settings, then run:
 ```bash
 sheaf sweep --yaml-path sweep.yaml --preset cora
 
-# Distributed sweep  add storage to the YAML under config:
+# Ready-made per-dataset NSD sweep configs live under configs/<dataset>/nsd/:
+sheaf sweep --yaml-path configs/texas/nsd/orthogonal.yaml --preset texas_nsd_orthogonal
+
+# Distributed sweep - add storage to the YAML under config:
 #   config:
 #     storage: sqlite:///sweep.db
 ```
@@ -192,4 +203,4 @@ If you use this library in your research, please cite our forthcoming paper: The
 
 ## Acknowledgments
 
-A special thank you to the additional contributors of this project: Gabriele Onorato and Dario Loi. 
+A special thank you to the additional contributors of this project: Gabriele Onorato and Dario Loi.

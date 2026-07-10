@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Tests for exp/data.py -- dataset loading, DatasetInfo, and SheafDataModule."""
 
@@ -402,6 +401,29 @@ class TestSheafDataModule:
             assert dm.num_edges == 2
             assert dm.homophily == 0.5
             assert dm.split_sizes == (1, 1, 1)
+
+    def test_hardware_propagation(self, setup_data):
+        from exp.data import SheafDataModule
+
+        data, info = setup_data
+        with (
+            patch("exp.data.load_dataset", return_value=(data, info)),
+            patch("exp.splits.apply_split", return_value=data),
+        ):
+            dm = SheafDataModule(
+                "cora",
+                root="/tmp/fake",
+                batch_size=4,
+                num_workers=2,
+                pin_memory=True,
+                persistent_workers=True,
+            )
+            dm.setup()
+            dl = dm.train_dataloader()
+            assert dl.batch_size == 4
+            assert dl.num_workers == 2
+            assert dl.pin_memory is True
+            assert dl.persistent_workers is True
 
 
 # ---------------------------------------------------------------------------

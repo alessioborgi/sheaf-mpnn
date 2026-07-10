@@ -16,6 +16,7 @@ NSD layers
    DiagonalNSDConv
    GeneralNSDConv
    OrthogonalNSDConv
+   LowRankNSDConv
 
 NSD model
 ---------

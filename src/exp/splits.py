@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Train / val / test split management for 10-fold cross-validation.
 
@@ -60,7 +59,9 @@ def _download_split(name: str, fold: int, path: str) -> None:
             os.remove(path)
         raise RuntimeError(
             f"Failed to download canonical split from {url}: {exc}\n"
-            "Run `python -m exp.gen_splits --source generate` to build splits locally."
+            "Retry (GitHub rate limits are transient) or copy the canonical "
+            "npz into src/exp/splits/; do NOT generate local splits, results "
+            "would no longer be comparable."
         ) from exc
     print(f"[splits] Saved -> {path}")
 
@@ -83,6 +84,12 @@ def _apply_npz_split(data: Data, name: str, fold: int) -> Data:
     data.train_mask = torch.from_numpy(split["train_mask"]).bool()
     data.val_mask = torch.from_numpy(split["val_mask"]).bool()
     data.test_mask = torch.from_numpy(split["test_mask"]).bool()
+    # Reference parity: drop non-valid nodes (isolated citeseer samples).
+    non_valid = getattr(data, "non_valid_mask", None)
+    if non_valid is not None:
+        data.train_mask &= ~non_valid
+        data.val_mask &= ~non_valid
+        data.test_mask &= ~non_valid
     return data
 
 
@@ -108,14 +115,19 @@ def _apply_pyg_mask_split(data: Data, fold: int) -> Data:
 def apply_split(data: Data, info: DatasetInfo, fold: int) -> Data:
     """Return a *clone* of *data* with 1-D boolean masks for the given fold.
 
-    Args:
-        data: The full graph dataset (masks may be multi-column at this point).
-        info: Metadata returned by :func:`~exp.data.load_dataset`.
-        fold: Zero-based fold index in ``[0, info.num_splits)``.
+    Parameters
+    ----------
+    data:
+        The full graph dataset (masks may be multi-column at this point).
+    info:
+        Metadata returned by :func:`~exp.data.load_dataset`.
+    fold:
+        Zero-based fold index in ``[0, info.num_splits)``.
 
     Returns:
-        A cloned ``Data`` object whose ``train_mask``, ``val_mask``, and
-        ``test_mask`` are 1-D boolean tensors of length N.
+    -------
+    A cloned ``Data`` object whose ``train_mask``, ``val_mask``, and
+    ``test_mask`` are 1-D boolean tensors of length N.
     """
     if info.split_type == "npz_file":
         return _apply_npz_split(data, info.name, fold)

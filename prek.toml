@@ -14,8 +14,14 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
-rev = "v0.6.0"
+rev = "v0.15.8"
 hooks = [
-  { id = "ruff", args = ["--fix"] },
+  { id = "ruff", args = ["--fix", "--unsafe-fixes"] },
   { id = "ruff-format" }
+]
+
+[[repos]]
+repo = "local"
+hooks = [
+  { id = "type-check", name = "type check", entry = "uv run ty check", language = "system", pass_filenames = false, always_run = true },
 ]

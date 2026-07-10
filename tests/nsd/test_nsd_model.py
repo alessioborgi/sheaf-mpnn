@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 import random
 
@@ -76,6 +75,59 @@ class TestNSDModel:
         empty_edge_index = torch.empty((2, 0), dtype=torch.long)
         out = model(x, empty_edge_index)
         assert out.shape == (x.size(0), model.out_channels)
+        assert torch.isfinite(out).all()
+
+
+# ---------------------------------------------------------------------------
+# JKNet
+# ---------------------------------------------------------------------------
+
+
+_JKNET_EDGE_INDEX = torch.tensor([[0, 1, 2, 3], [1, 2, 3, 0]], dtype=torch.long)
+
+
+class TestNSDModelJKNet:
+    def _model(self, normalize_output: bool = False) -> NSDModel:
+        set_seed(42)
+        return NSDModel(
+            in_channels=8,
+            out_channels=3,
+            stalk_dim=2,
+            hidden_dim=4,
+            num_layers=3,
+            jknet=True,
+            normalize_output=normalize_output,
+        )
+
+    def test_jk_attribute_created(self):
+        model = self._model()
+        assert hasattr(model, "jk")
+
+    def test_decoder_expanded_for_jknet(self):
+        model = self._model()
+        context_dim = model.stalk_dim * model.hidden_dim
+        assert model.decoder.in_features == 3 * context_dim
+
+    def test_forward_shape(self):
+        model = self._model()
+        x = torch.randn(10, 8)
+        out = model(x, _JKNET_EDGE_INDEX)
+        assert out.shape == (10, model.out_channels)
+        assert torch.isfinite(out).all()
+
+    def test_gradient_flow(self):
+        model = self._model()
+        x = torch.randn(10, 8)
+        out = model(x, _JKNET_EDGE_INDEX)
+        out.pow(2).mean().backward()
+        assert model.encoder.weight.grad is not None
+        assert model.encoder.weight.grad.abs().sum() > 0
+
+    def test_normalize_output_with_jknet(self):
+        model = self._model(normalize_output=True)
+        x = torch.randn(10, 8)
+        out = model(x, _JKNET_EDGE_INDEX)
+        assert out.shape == (10, model.out_channels)
         assert torch.isfinite(out).all()
 
 

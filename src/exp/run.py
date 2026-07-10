@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Neural Sheaf Diffusion - 10-fold cross-validation experiment runner.
 
@@ -10,6 +9,7 @@ Usage
     # Via the unified CLI (recommended):
     sheaf run --preset cora
     sheaf run --preset texas --model.num_layers 3
+    sheaf run --dataset.name cora --model.variant general --model.stalk_dim 4
 
     # Direct module invocation:
     python -m exp.run --preset cora
@@ -234,8 +234,8 @@ def _display_results(cfg: Config, info: DatasetInfo, results: list[float]) -> No
     arr = np.array(results)
     table.add_section()
     table.add_row(
-        "Mean ± Std",
-        f"[bold]{arr.mean() * scale:.2f} ± {arr.std() * scale:.2f}{suffix}[/bold]",
+        "Mean +- Std",
+        f"[bold]{arr.mean() * scale:.2f} +- {arr.std() * scale:.2f}{suffix}[/bold]",
     )
     _console.print(table)
 
@@ -315,5 +315,5 @@ def main() -> None:
     run(cfg)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     main()

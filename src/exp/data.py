@@ -1,15 +1,14 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Dataset loading and Lightning DataModule for the NSD benchmark suite.
 
 Supported datasets
 ------------------
-Homophilic  : cora, citeseer
+Homophilic  : cora, citeseer, pubmed
 Heterophilic: chameleon, squirrel, chameleon_filtered, squirrel_filtered,
-            cornell, texas, film
+            cornell, texas, wisconsin, film
 Heterophilous (Platonov et al. 2023):
             amazon_ratings, minesweeper, questions, roman_empire, tolokers
 
@@ -35,11 +34,7 @@ from torch_geometric.datasets import (
     WebKB,
     WikipediaNetwork,
 )
-from torch_geometric.utils import coalesce, to_undirected
-
-_DATA_DIR: str = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "exp", "data")
-)
+from torch_geometric.utils import coalesce, remove_self_loops, to_undirected
 
 # ---------------------------------------------------------------------------
 # Dataset metadata
@@ -65,12 +60,14 @@ ROC_AUC_DATASETS: frozenset[str] = frozenset({"minesweeper", "tolokers", "questi
 _LOADER: dict[str, tuple[str, str]] = {
     "cora": ("planetoid", "Cora"),
     "citeseer": ("planetoid", "CiteSeer"),
+    "pubmed": ("planetoid", "PubMed"),
     "chameleon": ("wiki", "chameleon"),
     "squirrel": ("wiki", "squirrel"),
     "chameleon_filtered": ("filtered_wiki", "chameleon_filtered"),
     "squirrel_filtered": ("filtered_wiki", "squirrel_filtered"),
     "cornell": ("webkb", "Cornell"),
     "texas": ("webkb", "Texas"),
+    "wisconsin": ("webkb", "Wisconsin"),
     "film": ("actor", ""),
     "amazon_ratings": ("heterophilous", "amazon-ratings"),
     "minesweeper": ("heterophilous", "minesweeper"),
@@ -87,10 +84,12 @@ NPZ_SPLIT_DATASETS: frozenset[str] = frozenset(
     {
         "cora",
         "citeseer",
+        "pubmed",
         "chameleon",
         "squirrel",
         "cornell",
         "texas",
+        "wisconsin",
         "film",
     }
 )
@@ -172,7 +171,7 @@ class FilteredWikipediaDataset(InMemoryDataset):
         torch.save(self.collate([data]), self.processed_paths[0])
 
 
-def load_dataset(name: str, root: str = _DATA_DIR) -> tuple[Data, DatasetInfo]:
+def load_dataset(name: str, root: str = "exp/data") -> tuple[Data, DatasetInfo]:
     """Load a benchmark dataset, downloading it automatically if needed.
 
     Args:
@@ -228,8 +227,23 @@ def load_dataset(name: str, root: str = _DATA_DIR) -> tuple[Data, DatasetInfo]:
         raise AssertionError(f"Unhandled loader kind: {kind!r}")
 
     assert data.x is not None
+    assert data.edge_index is not None
+    # The sheaf Laplacian assumes a symmetric, loop-free graph; stock PyG
+    # loaders ship raw directed edge lists (no-op where already clean).
+    edge_index, _ = remove_self_loops(data.edge_index)
+    data.edge_index = coalesce(to_undirected(edge_index), num_nodes=data.x.size(0))
+    # Row-normalize features only where the reference protocol does (Bodnar
+    # et al. on the Pei/planetoid sets); Platonov et al. use raw features.
+    x = data.x
+    if kind in ("planetoid", "wiki", "webkb", "actor"):
+        x = x / x.sum(dim=-1, keepdim=True).clamp(min=1)
+        data.x = x
+    if kind == "planetoid":
+        # Reference non_valid_samples: citeseer's isolated nodes carry all-zero
+        # features and a fabricated label; splits.py drops them from all masks.
+        data.non_valid_mask = x.sum(dim=-1) == 0
     assert isinstance(data.y, torch.Tensor)
-    num_features = int(data.x.size(1))
+    num_features = int(x.size(1))
     num_classes = int(data.y.max().item()) + 1
     split_type = "npz_file" if name in NPZ_SPLIT_DATASETS else "pyg_mask"
 
@@ -262,7 +276,7 @@ try:
         def __init__(
             self,
             name: str,
-            root: str = _DATA_DIR,
+            root: str = "exp/data",
             fold: int = 0,
             batch_size: int = 1,
             num_workers: int = 0,
@@ -352,5 +366,5 @@ try:
         def test_dataloader(self) -> _PyGLoader:
             return self._loader()
 
-except ImportError:
+except ImportError:  # pragma: no cover
     pass  # lightning is optional; SheafDataModule is unavailable without it

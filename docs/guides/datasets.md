@@ -1,6 +1,6 @@
 # Datasets and splits
 
-These 14 node-classification benchmarks are the standard testbed for
+These 16 node-classification benchmarks are the standard testbed for
 **heterophily research**: the regime where connected nodes tend to belong
 to *different* classes. The homophily ratio
 
@@ -26,10 +26,12 @@ automatically per dataset:
 :::{grid-item-card} Geom-GCN 48/32/20
 **Datasets:** cora (2 708 nodes, 5 429 edges, 7 classes, $h \approx 0.81$),
 citeseer (3 327 nodes, 4 732 edges, 6 classes, $h \approx 0.74$),
+pubmed (19 717 nodes, 44 338 edges, 3 classes, $h \approx 0.80$),
 chameleon (2 277 nodes, 36 101 edges, 5 classes, $h \approx 0.23$),
 squirrel (5 201 nodes, 217 073 edges, 5 classes, $h \approx 0.22$),
 cornell (183 nodes, 295 edges, 5 classes, $h \approx 0.11$),
 texas (183 nodes, 309 edges, 5 classes, $h \approx 0.11$),
+wisconsin (251 nodes, 499 edges, 5 classes, $h \approx 0.21$),
 film (alias `fil`, 7 600 nodes, 33 544 edges, 5 classes, $h \approx 0.22$).
 
 Canonical Pei et al. (2020) splits. The filename convention

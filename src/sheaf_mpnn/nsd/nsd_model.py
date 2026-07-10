@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 from enum import Enum, auto
 from typing import Any, Literal
@@ -49,22 +48,17 @@ class NSDVariant(Enum):
 
     def build_kwargs(
         self,
-        orth_strategy: Literal["cayley", "fasth"] = "cayley",
+        orth_strategy: Literal["cayley", "fasth", "fasthpp", "householder"] = "cayley",
         rank: int = 1,
+        use_edge_weights: bool = False,
     ) -> dict[str, Any]:
-        """Build the full layer keyword-argument dict for this variant."""
-        if self == NSDVariant.DIAGONAL:
-            return {}
+        kwargs = self.layer_kwargs.copy()
+        if self in {NSDVariant.ORTHOGONAL, NSDVariant.ORTHOGONAL_ATTENTION}:
+            kwargs["orth_strategy"] = orth_strategy
+            kwargs["use_edge_weights"] = use_edge_weights
         if self == NSDVariant.LOW_RANK:
-            return {"rank": rank}
-        if self == NSDVariant.GENERAL:
-            return {"use_attention": False}
-        if self == NSDVariant.GENERAL_ATTENTION:
-            return {"use_attention": True}
-        if self == NSDVariant.ORTHOGONAL:
-            return {"use_attention": False, "orth_strategy": orth_strategy}
-        # ORTHOGONAL_ATTENTION
-        return {"use_attention": True, "orth_strategy": orth_strategy}
+            kwargs["rank"] = rank
+        return kwargs
 
 
 class NSDModel(nn.Module):
@@ -84,13 +78,20 @@ class NSDModel(nn.Module):
         num_layers: int = 2,
         variant: NSDVariant = NSDVariant.GENERAL,
         alpha: float = 1.0,
-        add_self_loops: bool = True,
-        orth_strategy: str = "cayley",
+        add_self_loops: bool = False,
+        orth_strategy: Literal["cayley", "fasth", "fasthpp", "householder"] = "cayley",
         rank: int = 1,
+        add_eps: bool = True,
         input_dropout: float = 0.0,
         dropout: float = 0.0,
-        normalize_output: bool = True,
+        normalize_output: bool = False,
         jknet: bool = False,
+        add_lp: bool = False,
+        add_hp: bool = False,
+        sparse_learner: bool = False,
+        second_linear: bool = False,
+        use_edge_weights: bool = False,
+        learn_alpha: bool = True,
     ):
         """Initializes an NSD model for node-level prediction.
 
@@ -107,14 +108,25 @@ class NSDModel(nn.Module):
                 cheapest, ``GENERAL`` is most expressive, ``ORTHOGONAL`` uses orthogonal
                 maps (via Cayley or Householder parameterisation). ``GENERAL_ATTENTION``
                 and ``ORTHOGONAL_ATTENTION`` use an attention-based map initialisation.
-            alpha (float, optional): Initial learnable diffusion step size per layer.
+            alpha (float, optional): Initial diffusion step size per layer.
+                Defaults to 1.0, matching the reference update at init.
+            learn_alpha (bool, optional): If ``False``, alpha stays fixed at
+                its initial value (Bodnar-exact update: no step-size
+                parameter); if ``True`` it is learned. Defaults to ``True``.
             add_self_loops (bool, optional): If ``True``, self-loops are added to the
-                graph before computing degree normalization in each layer. Defaults to
-                ``True``.
+                graph before computing degree normalization in each layer. Defaults
+                to ``False``: the +1/+I degree augmentation now lives inside the
+                normalization itself, so adding self-loops would augment twice.
             orth_strategy (str, optional): Orthogonality strategy for the
-                ``ORTHOGONAL`` variant: "cayley" or "fasth". Defaults to "cayley".
+                ``ORTHOGONAL`` variant: "cayley", "fasth", "fasthpp", or
+                "householder" (reference orgqr; fasthpp computes the same map
+                natively). Defaults to "cayley".
             rank (int, optional): Rank of each restriction map for the ``LOW_RANK``
                 variant. Must be positive. Ignored for other variants. Defaults to 1.
+            add_eps (bool, optional): If ``True``, each layer applies a learnable
+                per-stalk rescaling ``eps in R^d`` to the skip term (Remark 4).
+                Defaults to ``True`` (reference parity: the original NSD always
+                gates the skip with ``1 + tanh(eps)``, eps initialized at zero).
             input_dropout (float, optional): Dropout probability applied to raw
                 input features before encoding. Defaults to 0.0.
             dropout (float, optional): Dropout probability applied to stalk features
@@ -122,12 +134,24 @@ class NSDModel(nn.Module):
             normalize_output (bool, optional): If ``True``, L2-normalise the
                 representation before the decoder (Lv et al., 2021). If ``jknet``
                 is ``True``, each layer's output is also normalised before
-                concatenation. Defaults to ``True``.
+                concatenation. Defaults to ``False`` (reference parity: the
+                original NSD decodes the raw representation).
             jknet (bool, optional): If ``True``, collect hidden states from every
                 layer and concatenate them before the decoder (Xu et al., 2018).
                 Normalization is controlled by ``normalize_output``. Intended for
                 link prediction. Defaults to ``False``.
+            add_lp (bool, optional): Appends one fixed stalk channel diffusing
+                with the signless Laplacian D+A (reference ``--add_lp``).
+            add_hp (bool, optional): Appends one fixed stalk channel diffusing
+                with the standard Laplacian D-A (reference ``--add_hp``).
+            sparse_learner (bool, optional): Stalk-summed map-generator input
+                (reference LocalConcatSheafLearnerVariant), shrinking the
+                learner from 2*final_d*hidden to 2*hidden inputs.
+            second_linear (bool, optional): Adds a second encoder linear after
+                the ELU+dropout stage (reference ``--second_linear``).
 
+            use_edge_weights: Learned symmetric per-edge scalars rescaling
+                orthogonal maps (reference edge_weights). Defaults to False.
         """
         super().__init__()
         if stalk_dim <= 0:
@@ -138,20 +162,28 @@ class NSDModel(nn.Module):
             raise ValueError("must have at least one NSD layer")
 
         self.stalk_dim = stalk_dim
+        # Fixed lp/hp channels extend the stalk beyond the learned dims.
+        self.final_d = stalk_dim + int(add_lp) + int(add_hp)
         self.hidden_dim = hidden_dim
         self.out_channels = out_channels
         self.num_layers = num_layers
         self.rank = rank
         self.normalize_output = normalize_output
         self.jknet = jknet
-        context_dim = stalk_dim * hidden_dim
+        context_dim = self.final_d * hidden_dim
         layer_class = variant.layer_class
 
         self.input_dropout_layer = nn.Dropout(p=input_dropout)
         self.dropout_layer = nn.Dropout(p=dropout)
         self.encoder = nn.Linear(in_channels, context_dim)
+        # Reference second_linear: extra encoder stage after ELU+dropout.
+        self.encoder2 = nn.Linear(context_dim, context_dim) if second_linear else None
 
-        extra_kwargs = variant.build_kwargs(orth_strategy=orth_strategy, rank=rank)
+        extra_kwargs = variant.build_kwargs(
+            orth_strategy=orth_strategy,
+            rank=rank,
+            use_edge_weights=use_edge_weights,
+        )
 
         self.layers = nn.ModuleList(
             [
@@ -159,14 +191,23 @@ class NSDModel(nn.Module):
                     stalk_dim=stalk_dim,
                     in_channels=hidden_dim,  # 'f' for W2 [f x f]
                     hidden_dim=hidden_dim,
-                    context_dim=context_dim,  # 'd*f' for MLP input [2*df x hidden]
+                    context_dim=context_dim,  # 'final_d*f' learner context
                     alpha=alpha,
                     add_self_loops=add_self_loops,
+                    add_eps=add_eps,
+                    dropout=dropout,
+                    add_lp=add_lp,
+                    add_hp=add_hp,
+                    sparse_learner=sparse_learner,
                     **extra_kwargs,
                 )
                 for _ in range(num_layers)
             ]
         )
+        if not learn_alpha:
+            # Bodnar-exact update: the diffusion step size stays fixed.
+            for layer in self.layers:
+                layer.alpha.requires_grad_(False)
 
         # JKNet expands decoder input to L  context_dim (Xu et al., 2018).
         decoder_in = (num_layers if jknet else 1) * context_dim
@@ -179,10 +220,13 @@ class NSDModel(nn.Module):
 
     def reset_parameters(self):
         self.encoder.reset_parameters()
+        if self.encoder2 is not None:
+            self.encoder2.reset_parameters()
         for layer in self.layers:
             assert isinstance(layer, BaseNSDConv)
             layer.reset_parameters()
-        self.decoder.reset_parameters()
+        if isinstance(self.decoder, nn.Linear):
+            self.decoder.reset_parameters()
 
     def forward(self, x, edge_index):
         """Runs the NSD encoder, diffusion layers, and decoder.
@@ -198,23 +242,30 @@ class NSDModel(nn.Module):
         """
         if x.dim() != 2 or x.size(1) != self.encoder.in_features:
             raise ValueError(
-                f"x must be [num_nodes, {self.encoder.in_features}], \
-                got {tuple(x.shape)}"
+                f"x must have shape [num_nodes, {self.encoder.in_features}],"
+                f" got {tuple(x.shape)}"
             )
         if edge_index.shape[0] != 2:
             raise ValueError(
-                f"edge_index must have shape [2, num_edges], got \
-                    {tuple(edge_index.shape)}"
+                "edge_index must have shape [2, num_edges],"
+                f" got {tuple(edge_index.shape)}"
             )
-        # Lift raw features to stalk space: [N, in_channels] -> [N, d, f].
-        x_stalk = self.encoder(self.input_dropout_layer(x)).view(
-            -1, self.stalk_dim, self.hidden_dim
-        )
+
+        # Lift raw features to stalk space: [N, in_channels] -> [N, final_d, f].
+        # Reference pipeline: lin1 -> ELU -> dropout [-> lin12] before diffusion.
+        x_stalk = self.encoder(self.input_dropout_layer(x))
+        x_stalk = self.dropout_layer(F.elu(x_stalk))
+        if self.encoder2 is not None:
+            x_stalk = self.encoder2(x_stalk)
+        x_stalk = x_stalk.view(-1, self.final_d, self.hidden_dim)
 
         layer_reps = []
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             # Flatten stalk to [N, d*f] as context for restriction-map generation.
-            x_feat = self.dropout_layer(x_stalk.reshape(x_stalk.size(0), -1))
+            x_feat = x_stalk.reshape(x_stalk.size(0), -1)
+            # Reference: the layer-0 learner sees the un-dropped features.
+            if i > 0:
+                x_feat = self.dropout_layer(x_feat)
             x_stalk = layer(x_feat, x_stalk, edge_index)
             if self.jknet:
                 h = x_stalk.reshape(x_stalk.size(0), -1)
@@ -228,7 +279,7 @@ class NSDModel(nn.Module):
             x_out = x_stalk.reshape(x_stalk.size(0), -1)
 
         if self.normalize_output:
-            # L2-normalise final representation — Lv et al. (2021).
+            # L2-normalise final representation - Lv et al. (2021).
             x_out = F.normalize(x_out, p=2, dim=-1)
 
         return self.decoder(x_out)

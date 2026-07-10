@@ -1,7 +1,6 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """End-to-end smoke tests covering the three public surfaces.
 
@@ -81,7 +80,7 @@ class TestExpRunCLI:
                 "2",
                 "--optim.early-stopping",
                 "999",
-                "--cv.n-folds",
+                "--cv.folds",
                 "1",
             ],
             capture_output=True,

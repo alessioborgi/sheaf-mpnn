@@ -1,38 +1,24 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
 """Typed configuration dataclasses for the NSD benchmark runner.
 
 Consumed by ``tyro.cli`` in ``exp/run.py``.  Per-dataset preset defaults live
-in ``exp/registries/presets.py`` and are injected via ``tyro.cli(Config, default=...)``,
+in ``exp/registries/presets.py`` and are injected via
+``tyro.cli(Config, default=...)``,
 so every field remains overridable from the command line.
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from typing import Literal
 
-_DATA_DIR: str = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "exp", "data")
-)
-
 
 class ModelType(StrEnum):
     NSD = auto()
-
-
-class ModelVariant(StrEnum):
-    DIAGONAL = auto()
-    GENERAL = auto()
-    ORTHOGONAL = auto()
-    GENERAL_ATTENTION = auto()
-    ORTHOGONAL_ATTENTION = auto()
-    LOW_RANK = auto()
 
 
 @dataclass
@@ -40,7 +26,7 @@ class DatasetConfig:
     """Dataset identity and storage location."""
 
     name: str = "cora"
-    root: str = field(default_factory=lambda: _DATA_DIR)
+    root: str = "exp/data"
 
 
 @dataclass
@@ -60,14 +46,28 @@ class ModelConfig:
     hidden_dim: int = 16
     num_layers: int = 2
     alpha: float = 1.0
+    # False freezes alpha at its init value (Bodnar-exact: no learnable step).
+    learn_alpha: bool = True
     rank: int = 1
-    orth_strategy: Literal["cayley", "fasth"] = "cayley"
-    normalize_output: bool = True
+    orth_strategy: Literal["cayley", "fasth", "fasthpp", "householder"] = "cayley"
+    # Reference NSD options: fixed low/high-pass stalk channels, stalk-summed
+    # sparse map learner, and a second encoder linear (Bodnar et al. flags).
+    add_lp: bool = False
+    add_hp: bool = False
+    sparse_learner: bool = False
+    second_linear: bool = False
+    # Learned symmetric edge weights for orthogonal maps (reference
+    # edge_weights; bundle-only in Bodnar et al.).
+    edge_weights: bool = False
+    # Output normalisation & jumping knowledge
+    # normalize_output: L2-normalize the representation before the decoder
+    #   (Lv et al., 2021).  If jknet is True, per-layer outputs are normalized
+    #   before concatenation.
+    # jknet: concatenate hidden states across all layers before the decoder
+    #   (Xu et al., 2018). Normalization is controlled by normalize_output.
+    #   Intended for link prediction - leave False for node/graph classification.
+    normalize_output: bool = False
     jknet: bool = False
-    # Unused for NSD, kept so SweepConfig can reference ModelConfig fields generically
-    num_heads: int = 1
-    leaky_relu_slope: float = 0.2
-    clamp_val: float = 10.0
 
 
 @dataclass
@@ -84,6 +84,9 @@ class OptimConfig:
 
     lr: float = 0.01
     weight_decay: float = 5e-4
+    # Separate weight decay for the sheaf map generators (reference
+    # sheaf_decay); None falls back to weight_decay.
+    sheaf_decay: float | None = None
     epochs: int = 1000
     early_stopping: int = 200
     stop_strategy: Literal["loss", "acc"] = "loss"

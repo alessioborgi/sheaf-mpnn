@@ -25,16 +25,24 @@ coverage.xml
 # W&B local artefacts
 wandb/
 
-# Pre-computed split files (downloaded on demand via exp/gen_splits.py)
-# Ignore the whole folder so any shard format stays out of the index.
+# Optuna sweep result databases (live SQLite files, written by running sweeps)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Canonical Geom-GCN split files, auto-downloaded on demand; verified
+# byte-identical (md5) to the npz shipped in the Bodnar et al. repo.
 src/exp/splits/*
 notebooks/exp
 notebooks/lightning_logs
 !src/exp/splits/.gitkeep
 
 # Downloaded dataset files (cached by PyG, downloaded on demand)
+data/
 exp/data/*
 !exp/data/.gitkeep
 src/exp/data/*
 !src/exp/data/.gitkeep
 checkpoints/
+tmp/

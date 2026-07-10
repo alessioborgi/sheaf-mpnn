@@ -1,9 +1,8 @@
 # Copyright (c) 2026 "Sheaf Neural Networks as Message Passing"
-# Authors: Alessio Borgi, Gabriele Onorato, Luke Braithwaite,
-#   Mario Severino, Emanuele Mule, Dario Loi,
-#   Francesco Restuccia, Fabrizio Silvestri, Pietro Liò
+# Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
+#   Fabrizio Silvestri, and Pietro Liò
 
-"""Tests for exp/sweeps/sweep.py — _suggest, _build_cfg, _run_trial, main, E2E."""
+"""Tests for exp/sweeps/sweep.py - _suggest, _build_cfg, _run_trial, main, E2E."""
 
 from __future__ import annotations
 
@@ -94,7 +93,9 @@ def _run_mocked(
         trial = _make_trial()
     dm_mock = _make_dm_mock(metric=metric)
     trainer_mock = MagicMock()
+    trainer_mock.current_epoch = 10
     trainer_mock.validate.return_value = [{f"val_{metric}": val_metric}]
+    trainer_mock.test.return_value = [{f"test_{metric}": val_metric - 0.05}]
     with (
         patch("exp.sweeps.sweep.SheafDataModule", return_value=dm_mock),
         patch("exp.sweeps.sweep.SheafLightningModule"),
@@ -334,6 +335,10 @@ class TestMakeWandbCallbacks:
 
 
 class TestMain:
+    @pytest.fixture(autouse=True)
+    def _chdir_to_tmp(self, monkeypatch, tmp_path):
+        monkeypatch.chdir(tmp_path)
+
     def _make_yaml_file(self, tmp_path: Path, **overrides) -> Path:
         content = {
             "model": "nsd",
@@ -367,6 +372,10 @@ class TestMain:
         with (
             patch(_PRESET_PATCH, return_value=Config()),
             patch("exp.sweeps.sweep.setup_torch"),
+            patch(
+                "exp.sweeps.sweep._run_final_test",
+                return_value={"mean_test_acc": 0.8, "std_test_acc": 0.01},
+            ),
             patch("exp.sweeps.sweep.optuna.create_study", return_value=study_mock),
         ):
             main(yaml_path=yaml_path)
@@ -380,6 +389,10 @@ class TestMain:
         with (
             patch(_PRESET_PATCH, return_value=Config()),
             patch("exp.sweeps.sweep.setup_torch"),
+            patch(
+                "exp.sweeps.sweep._run_final_test",
+                return_value={"mean_test_acc": 0.8, "std_test_acc": 0.01},
+            ),
             patch("exp.sweeps.sweep.optuna.create_study", return_value=study_mock),
         ):
             main(yaml_path=yaml_path)
@@ -395,6 +408,10 @@ class TestMain:
             patch(_PRESET_PATCH, return_value=Config()),
             patch("exp.sweeps.sweep.setup_torch"),
             patch(
+                "exp.sweeps.sweep._run_final_test",
+                return_value={"mean_test_acc": 0.8, "std_test_acc": 0.01},
+            ),
+            patch(
                 "exp.sweeps.sweep.optuna.create_study", return_value=study_mock
             ) as create_mock,
         ):
@@ -409,6 +426,10 @@ class TestMain:
         with (
             patch(_PRESET_PATCH, return_value=Config()),
             patch("exp.sweeps.sweep.setup_torch"),
+            patch(
+                "exp.sweeps.sweep._run_final_test",
+                return_value={"mean_test_acc": 0.8, "std_test_acc": 0.01},
+            ),
             patch("exp.sweeps.sweep.optuna.create_study", return_value=study_mock),
         ):
             main(yaml_path=yaml_path)
@@ -429,6 +450,10 @@ class TestMain:
         with (
             patch(_PRESET_PATCH, return_value=Config()),  # default: name="cora"
             patch("exp.sweeps.sweep.setup_torch"),
+            patch(
+                "exp.sweeps.sweep._run_final_test",
+                return_value={"mean_test_acc": 0.8, "std_test_acc": 0.01},
+            ),
             patch("exp.sweeps.sweep.optuna.create_study", return_value=study_mock),
         ):
             main(yaml_path=yaml_path)
@@ -444,9 +469,44 @@ class TestMain:
 
         assert captured[0].dataset.name == "texas"
 
+    def test_main_prints_objective_line_when_std_weight_positive(
+        self, tmp_path, capsys
+    ):
+        """Line 307: objective line is printed only when std_weight > 0."""
+        from exp.sweeps.sweep import main
+
+        yaml_path = self._make_yaml_file(
+            tmp_path, config={"n_trials": 1, "seed": 0, "std_weight": 0.5}
+        )
+        study_mock = self._make_study_mock()
+        # Give the study a non-zero value so the objective line is meaningful
+        study_mock.best_trial.value = 0.70
+        study_mock.best_trial.user_attrs = {
+            "val_mean": 0.75,
+            "val_std": 0.1,
+            "n_seeds": 2,
+        }
+        with (
+            patch(_PRESET_PATCH, return_value=Config()),
+            patch("exp.sweeps.sweep.setup_torch"),
+            patch(
+                "exp.sweeps.sweep._run_final_test",
+                return_value={"mean_test_acc": 0.8, "std_test_acc": 0.01},
+            ),
+            patch("exp.sweeps.sweep.optuna.create_study", return_value=study_mock),
+        ):
+            main(yaml_path=yaml_path)
+        out = capsys.readouterr().out
+        assert "objective" in out, (
+            "Expected 'objective' line in output for std_weight > 0"
+        )
+        assert "0.5" in out or "0.50" in out, (
+            "Expected std_weight printed in objective line"
+        )
+
 
 # ---------------------------------------------------------------------------
-# E2E integration test — real Trainer + toy in-memory data
+# E2E integration test  real Trainer + toy in-memory data
 # ---------------------------------------------------------------------------
 
 
@@ -491,6 +551,9 @@ class _ToyDataModule(LightningDataModule):
     def val_dataloader(self):
         return PyGDataLoader([self._data], batch_size=1)
 
+    def test_dataloader(self):
+        return PyGDataLoader([self._data], batch_size=1)
+
 
 class TestE2E:
     def test_single_trial_with_real_trainer_and_module(self):
@@ -527,3 +590,29 @@ class TestE2E:
         attrs = {c.args[0]: c.args[1] for c in trial.set_user_attr.call_args_list}
         assert "val_mean" in attrs
         assert "val_std" in attrs
+
+
+class TestPerTrialTestMetrics:
+    """Every trial must record test metrics at the best-val checkpoint."""
+
+    def test_test_metrics_aggregated_with_std(self, tmp_path):
+        trial = _make_trial()
+        sweep_cfg = _make_sweep_cfg()
+        base_cfg = _make_base_cfg()
+        _run_mocked(sweep_cfg, base_cfg, trial=trial)
+        attrs = {c.args[0]: c.args[1] for c in trial.set_user_attr.call_args_list}
+        assert attrs["mean_test_acc"] == pytest.approx(0.70)
+        assert attrs["std_test_acc"] == 0.0
+        assert attrs["mean_val_acc"] == pytest.approx(0.75)
+        assert attrs["std_val_acc"] == 0.0
+
+    def test_resource_metrics_aggregated(self, tmp_path):
+        trial = _make_trial()
+        _run_mocked(_make_sweep_cfg(), _make_base_cfg(), trial=trial)
+        attrs = {c.args[0]: c.args[1] for c in trial.set_user_attr.call_args_list}
+        assert attrs["mean_fit_time_s"] > 0.0
+        assert attrs["std_fit_time_s"] == 0.0
+        # The mocked trainer reports 10 epochs, so per-epoch = total / 10.
+        assert attrs["mean_epoch_time_s"] == pytest.approx(
+            attrs["mean_fit_time_s"] / 10
+        )

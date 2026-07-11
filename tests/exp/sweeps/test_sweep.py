@@ -381,7 +381,9 @@ class TestMain:
             main(yaml_path=yaml_path)
         study_mock.optimize.assert_called_once()
 
-    def test_main_passes_n_trials_to_optimize(self, tmp_path):
+    def test_main_caps_total_trials_via_callback(self, tmp_path):
+        from optuna.study import MaxTrialsCallback
+
         from exp.sweeps.sweep import main
 
         yaml_path = self._make_yaml_file(tmp_path)
@@ -397,7 +399,14 @@ class TestMain:
         ):
             main(yaml_path=yaml_path)
         _, kwargs = study_mock.optimize.call_args
-        assert kwargs["n_trials"] == 2
+        # The cap must be a study-wide callback, not a per-invocation n_trials,
+        # so resumed or distributed sweeps stop at the configured total.
+        assert "n_trials" not in kwargs
+        max_trials_cbs = [
+            cb for cb in kwargs["callbacks"] if isinstance(cb, MaxTrialsCallback)
+        ]
+        assert len(max_trials_cbs) == 1
+        assert max_trials_cbs[0]._n_trials == 2
 
     def test_main_creates_maximize_study(self, tmp_path):
         from exp.sweeps.sweep import main

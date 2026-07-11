@@ -1,7 +1,7 @@
-# NSD sweep on texas - low_rank restriction map.
+# NSD sweep on cora - orthogonal restriction map.
 #
 # Run with:
-#   python -m exp.sweeps.sweep --yaml-path configs/texas/nsd/low_rank.yaml --preset texas_nsd_low_rank
+#   python -m exp.sweeps.sweep --yaml-path configs/cora/nsd/orthogonal.yaml --preset cora_nsd_orthogonal
 
 model: nsd
 
@@ -21,9 +21,6 @@ search_space:
     low: 0.01
     high: 4.0
     log: true
-  rank:
-    type: categorical
-    choices: [1, 2, 4]
   input_dropout:
     type: categorical
     choices: [0.0, 0.2, 0.5, 0.7]
@@ -55,6 +52,14 @@ search_space:
     high: 0.1
     log: true
 
+  orth_strategy:
+    type: categorical
+    choices: [fasthpp, householder] # choices: [cayley, fasth, fasthpp, householder]
+
+  edge_weights:
+    type: categorical
+    choices: [false, true]
+
   learn_alpha:
     type: categorical
     choices: [false, true]
@@ -63,8 +68,8 @@ config:
   n_trials: 250
   n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
   std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
-  study_name: nsd-texas-low-rank
+  study_name: nsd-cora-orthogonal
   seed: 42
-  storage: sqlite:///nsd_texas_low_rank.db   # uncomment for distributed / resumable sweeps
+  storage: sqlite:///nsd_cora_orthogonal.db   # uncomment for distributed / resumable sweeps
   wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
   wandb_entity: sheaf-mpnn

@@ -1,3 +1,4 @@
 best_params:
   stalk_dim: 3
+  variant: diagonal
 model: nsd

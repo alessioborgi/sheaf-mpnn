@@ -1,7 +1,7 @@
-# NSD sweep on amazon_ratings - low_rank restriction map.
+# NSD sweep on cora - diagonal restriction map.
 #
 # Run with:
-#   python -m exp.sweeps.sweep --yaml-path configs/amazon_ratings/nsd/low_rank.yaml --preset amazon_ratings_nsd_low_rank
+#   python -m exp.sweeps.sweep --yaml-path configs/cora/nsd/diagonal.yaml --preset cora_nsd_diagonal
 
 model: nsd
 
@@ -21,9 +21,6 @@ search_space:
     low: 0.01
     high: 4.0
     log: true
-  rank:
-    type: categorical
-    choices: [1, 2, 4]
   input_dropout:
     type: categorical
     choices: [0.0, 0.2, 0.5, 0.7]
@@ -61,10 +58,10 @@ search_space:
 
 config:
   n_trials: 250
-  n_seeds_per_trial: 10  # Platonov protocol: every trial trains all 10 splits
+  n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
   std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
-  study_name: nsd-amazon-ratings-low-rank
+  study_name: nsd-cora-diagonal
   seed: 42
-  storage: sqlite:///nsd_amazon_ratings_low_rank.db   # uncomment for distributed / resumable sweeps
+  storage: sqlite:///nsd_cora_diagonal.db   # uncomment for distributed / resumable sweeps
   wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
   wandb_entity: sheaf-mpnn

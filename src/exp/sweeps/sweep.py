@@ -63,6 +63,8 @@ import yaml
 from lightning import Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.utilities.warnings import PossibleUserWarning
+from optuna.study import MaxTrialsCallback
+from optuna.trial import TrialState
 from rich.console import Console
 
 from exp.config import (
@@ -398,10 +400,17 @@ def sweep(
 
     # Diverged trials (non-finite maps -> LinAlgError/RuntimeError) are marked
     # FAILED instead of killing the whole sweep.
+    # MaxTrialsCallback caps the study's total trial count across resumes and
+    # workers; a bare n_trials would add n_trials more on every relaunch.
     study.optimize(
         objective,
-        n_trials=sweep_cfg.config.n_trials,
-        callbacks=wandb_callbacks,
+        callbacks=[
+            *wandb_callbacks,
+            MaxTrialsCallback(
+                sweep_cfg.config.n_trials,
+                states=(TrialState.COMPLETE, TrialState.PRUNED, TrialState.FAIL),
+            ),
+        ],
         catch=(RuntimeError,),
     )
 

@@ -124,7 +124,9 @@ def ensure_asset(filename: str, dest: str) -> str:
     print(f"[datasets] Downloading {filename} from the {_TAG} release ...")
     fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(dest), suffix=".part")
     try:
-        with _OPENER.open(req, timeout=600) as resp, os.fdopen(fd, "wb") as out:
+        # Wrap fd first so it is closed even when the request fails: Windows
+        # cannot delete a file that is still open.
+        with os.fdopen(fd, "wb") as out, _OPENER.open(req, timeout=600) as resp:
             while chunk := resp.read(1 << 20):
                 out.write(chunk)
         os.replace(tmp_path, dest)  # atomic: no half-written dataset files

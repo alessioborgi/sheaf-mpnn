@@ -4095,7 +4095,7 @@ requires-dist = [
     { name = "torch-geometric", specifier = ">=2.6" },
     { name = "torch-geometric-signed-directed", marker = "extra == 'experiments'", specifier = ">=1.0.0" },
     { name = "torch-householder", marker = "extra == 'householder'", specifier = ">=1.0.1" },
-    { name = "tyro", marker = "extra == 'experiments'", specifier = ">=0.8.0" },
+    { name = "tyro", marker = "extra == 'experiments'", specifier = ">=0.9.20" },
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.19" },
 ]
 provides-extras = ["householder", "experiments", "wandb", "benchmark", "notebooks", "all"]

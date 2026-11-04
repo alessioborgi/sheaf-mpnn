@@ -41,7 +41,7 @@ def test_build_command_ours(tmp_path):
     manifest = _manifest(tmp_path)
     job = JobSpec("texas", "orthogonal", "ours", "convergence", 3)
     argv, _cwd = build_command(manifest, job, tmp_path / "out.json")
-    assert argv[0] == "/env/ours/bin/python"
+    assert argv[0] == str(Path("/env/ours/bin/python").resolve())
     assert argv[argv.index("--dataset") + 1] == "texas"
     assert argv[argv.index("--variant") + 1] == "orthogonal"
     assert argv[argv.index("--mode") + 1] == "convergence"
@@ -51,7 +51,7 @@ def test_build_command_original_maps_variant_and_sets_cwd(tmp_path):
     manifest = _manifest(tmp_path)
     job = JobSpec("texas", "orthogonal", "original", "efficiency", 2)
     argv, cwd = build_command(manifest, job, tmp_path / "out.json")
-    assert argv[0] == "/env/original/bin/python"
+    assert argv[0] == str(Path("/env/original/bin/python").resolve())
     assert argv[argv.index("--variant") + 1] == "BundleSheaf"
     assert cwd == Path("external/neural-sheaf-diffusion").resolve()
 

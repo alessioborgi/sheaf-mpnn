@@ -153,8 +153,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install from package metadata
+        # setup-uv already created .venv for the requested Python.
         run: |
-          uv venv
           # --no-config --no-sources: ignore the lock-only pins in [tool.uv].
           uv pip install --no-config --no-sources ".[experiments,wandb,benchmark]" "pytest>=8" "pytest-cov>=5" --torch-backend cpu --resolution ${{ matrix.resolution }}
 

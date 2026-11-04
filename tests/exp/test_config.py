@@ -174,3 +174,37 @@ class TestConfig:
         new_cfg = dataclasses.replace(cfg, model=ModelConfig(stalk_dim=6))
         assert new_cfg.model.stalk_dim == 6
         assert new_cfg.dataset.name == "cora"  # unchanged
+
+
+class TestEnumFlagsAreCaseInsensitive:
+    """``--model.type`` / ``--model.pooling`` accept values in either case."""
+
+    @staticmethod
+    def _parse(*argv: str) -> Config:
+        import tyro
+
+        return tyro.cli(Config, args=list(argv))
+
+    @pytest.mark.parametrize("spelling", ["nsd", "NSD", "Nsd"])
+    def test_model_type_any_case(self, spelling):
+        from exp.config import ModelType
+
+        cfg = self._parse("--model.type", spelling)
+        assert cfg.model.type is ModelType.NSD
+
+    @pytest.mark.parametrize("spelling", ["sag", "SAG"])
+    def test_pooling_any_case(self, spelling):
+        from exp.config import GCPooling
+
+        cfg = self._parse("--model.pooling", spelling)
+        assert cfg.model.pooling is GCPooling.SAG
+
+    def test_unknown_model_type_is_rejected(self):
+        with pytest.raises(SystemExit):
+            self._parse("--model.type", "not_a_model")
+
+    def test_help_lists_lowercase_values(self, capsys):
+        with pytest.raises(SystemExit):
+            self._parse("--help")
+        out = capsys.readouterr().out
+        assert "nsd" in out and "het_nsd" in out

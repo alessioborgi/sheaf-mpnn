@@ -1,0 +1,43 @@
+# SheafAttn sweep on roman_empire – res_sheafan variant.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/roman_empire/sheaf_attn/res_sheafan.yaml --preset roman_empire_res_sheafan
+
+model: sheaf_attn
+
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 4, 8]
+  hidden_dim:
+    type: categorical
+    choices: [16, 32, 64, 128, 256, 512]
+  num_layers:
+    type: int
+    low: 1
+    high: 8
+  num_heads:
+    type: categorical
+    choices: [1, 2, 4, 8]
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2]
+  lr:
+    type: categorical
+    choices: [0.003, 0.0003, 0.00003]
+  weight_decay:
+    type: categorical
+    choices: [0.003, 0.0003, 0.00003]
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Platonov protocol: every trial trains all 10 splits
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: sheaf-attn-roman-empire-res-sheafan
+  seed: 42
+  storage: sqlite:///sheaf_attn_roman_empire_res_sheafan.db   # uncomment for distributed / resumable sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

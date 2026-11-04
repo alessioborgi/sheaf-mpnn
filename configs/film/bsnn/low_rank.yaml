@@ -1,0 +1,94 @@
+# BSNN sweep on film - low_rank restriction map.
+#
+# Bayesian Sheaf Neural Network (Gillespie et al., 2025, arXiv:2410.09590):
+# the sheaf is a latent random variable, training maximizes the ELBO with a
+# cyclically annealed KL term, and evaluation ensembles stochastic passes.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/film/bsnn/low_rank.yaml \
+#     --preset film_bsnn_low_rank
+
+model: bsnn
+
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 3, 4, 5, 6]
+  hidden_dim:
+    type: categorical
+    choices: [8, 16, 32, 64]
+  num_layers:
+    type: int
+    low: 2
+    high: 6
+  alpha:
+    type: float
+    low: 0.01
+    high: 4.0
+    log: true
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  lr:
+    type: categorical
+    choices: [0.02, 0.01, 0.002]
+  weight_decay:
+    type: float
+    low: 0.0000001
+    high: 0.01
+    log: true
+  sheaf_decay:
+    type: float
+    low: 0.00000001
+    high: 0.01
+    log: true
+
+  add_lp:
+    type: categorical
+    choices: [false, true]
+  add_hp:
+    type: categorical
+    choices: [false, true]
+  sparse_learner:
+    type: categorical
+    choices: [false, true]
+  second_linear:
+    type: categorical
+    choices: [false, true]
+  learn_alpha:
+    type: categorical
+    choices: [false, true]
+
+  # ELBO knobs: maximum KL weight, annealing schedule, cycle length, and the
+  # number of stochastic forward passes ensembled at evaluation time.
+  kl_weight:
+    type: float
+    low: 0.01
+    high: 10.0
+    log: true
+  kl_anneal:
+    type: categorical
+    choices: [cyclical, constant]
+  kl_cycle:
+    type: categorical
+    choices: [20, 40, 80]
+  ensemble_size:
+    type: categorical
+    choices: [1, 3, 5]
+
+  rank:
+    type: categorical
+    choices: [1, 2, 4]
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: bsnn-film-low_rank
+  seed: 42
+  storage: sqlite:///bsnn_film_low_rank.db   # for distributed sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

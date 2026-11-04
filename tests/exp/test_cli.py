@@ -58,7 +58,9 @@ def _make_dm_mock(metric: str = "acc", num_splits: int = 10) -> MagicMock:
     )
     dm.split_sizes = (100, 50, 50)
     dm.num_edges = 200
+    dm.num_edges_total = 400
     dm.num_nodes = 100
+    dm.is_directed = False
     dm.homophily = 0.8
     return dm
 
@@ -155,6 +157,86 @@ class TestCliDispatch:
         assert exc_info.value.code == 0
 
 
+class TestBenchmarkDispatch:
+    """`sheaf benchmark <submit|collect|report>` must load the manifest once
+    and forward it (plus --modes) to the right exp.benchmark function.
+    """
+
+    def test_submit_dispatches_with_manifest_and_modes(self, tmp_path, monkeypatch):
+        from exp.cli import main
+
+        manifest_path = tmp_path / "m.yaml"
+        manifest_path.write_text("name: t\n")
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "sheaf",
+                "benchmark",
+                "submit",
+                "--manifest",
+                str(manifest_path),
+                "--modes",
+                "efficiency",
+            ],
+        )
+        fake_manifest = object()
+        with (
+            patch(
+                "exp.benchmark.models.load_manifest", return_value=fake_manifest
+            ) as load_mock,
+            patch("exp.benchmark.submit.submit") as submit_mock,
+        ):
+            main()
+        load_mock.assert_called_once_with(manifest_path)
+        submit_mock.assert_called_once_with(fake_manifest, modes=["efficiency"])
+
+    def test_collect_dispatches_with_manifest(self, tmp_path, monkeypatch):
+        from exp.cli import main
+
+        manifest_path = tmp_path / "m.yaml"
+        manifest_path.write_text("name: t\n")
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["sheaf", "benchmark", "collect", "--manifest", str(manifest_path)],
+        )
+        fake_manifest = object()
+        with (
+            patch("exp.benchmark.models.load_manifest", return_value=fake_manifest),
+            patch("exp.benchmark.collect.collect") as collect_mock,
+        ):
+            main()
+        collect_mock.assert_called_once_with(fake_manifest)
+
+    def test_submit_rejects_unknown_modes_value(self, tmp_path, monkeypatch):
+        from exp.cli import main
+
+        manifest_path = tmp_path / "m.yaml"
+        manifest_path.write_text("name: t\n")
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "sheaf",
+                "benchmark",
+                "submit",
+                "--manifest",
+                str(manifest_path),
+                "--modes",
+                "efficency",  # typo
+            ],
+        )
+        fake_manifest = object()
+        with (
+            patch("exp.benchmark.models.load_manifest", return_value=fake_manifest),
+            patch("exp.benchmark.submit.submit") as submit_mock,
+            pytest.raises(SystemExit, match="Unknown --modes value"),
+        ):
+            main()
+        submit_mock.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # _run_fold
 # ---------------------------------------------------------------------------
@@ -175,7 +257,7 @@ class TestRunFold:
 
         with (
             patch("exp.run.SheafDataModule"),
-            patch("exp.run.SheafLightningModule"),
+            patch("exp.run.select_module_cls"),
             patch("exp.run.Trainer", return_value=trainer_mock),
             patch("exp.run.EarlyStopping"),
             patch("exp.run.ModelCheckpoint"),
@@ -200,7 +282,7 @@ class TestRunFold:
 
         with (
             patch("exp.run.SheafDataModule"),
-            patch("exp.run.SheafLightningModule"),
+            patch("exp.run.select_module_cls"),
             patch("exp.run.Trainer", return_value=trainer_mock),
             patch("exp.run.EarlyStopping"),
             patch("exp.run.ModelCheckpoint"),
@@ -239,7 +321,7 @@ class TestRunFunction:
 
         with (
             patch("exp.run.SheafDataModule", return_value=dm_mock),
-            patch("exp.run.SheafLightningModule"),
+            patch("exp.run.select_module_cls"),
             patch("exp.run.Trainer", return_value=trainer_mock),
             patch("exp.run.EarlyStopping"),
             patch("exp.run.ModelCheckpoint"),
@@ -594,6 +676,52 @@ def test_make_logger_wandb_enabled_returns_logger_instance():
 
 
 # ---------------------------------------------------------------------------
+# finish_wandb_run (run.py): one W&B run per fold
+# ---------------------------------------------------------------------------
+
+
+def test_finish_wandb_run_noop_when_logging_disabled():
+    from exp.run import finish_wandb_run
+
+    with patch("wandb.finish") as mock_finish:
+        finish_wandb_run(False)
+    mock_finish.assert_not_called()
+
+
+def test_finish_wandb_run_closes_active_run():
+    from exp.run import finish_wandb_run
+
+    with patch("wandb.finish") as mock_finish:
+        finish_wandb_run(MagicMock())
+    mock_finish.assert_called_once()
+
+
+def test_run_fold_finishes_wandb_run_even_when_training_fails():
+    # Without this, Lightning reuses the open run and fold k logs into fold 0.
+    cfg = _make_cfg()
+    info = _make_info("acc")
+    trainer_mock = MagicMock()
+    trainer_mock.fit.side_effect = RuntimeError("diverged")
+
+    with (
+        patch("exp.run.SheafDataModule"),
+        patch("exp.run.select_module_cls"),
+        patch("exp.run._make_logger", return_value=MagicMock()),
+        patch("exp.run.Trainer", return_value=trainer_mock),
+        patch("exp.run.EarlyStopping"),
+        patch("exp.run.ModelCheckpoint"),
+        patch("exp.run.tempfile.TemporaryDirectory") as mock_tmpdir,
+        patch("wandb.finish") as mock_finish,
+    ):
+        mock_tmpdir.return_value.__enter__.return_value = "/tmp/ckpt"
+        mock_tmpdir.return_value.__exit__.return_value = False
+        with pytest.raises(RuntimeError, match="diverged"):
+            _run_fold(cfg, info, fold=0, monitor="val_acc", ckpt_mode="max")
+
+    mock_finish.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # _display_startup (run.py)
 # ---------------------------------------------------------------------------
 
@@ -604,13 +732,51 @@ def test_display_startup_does_not_raise():
     cfg = _make_cfg()
     info = _make_info()
     with (
-        patch("exp.run.SheafLightningModule"),
+        patch("exp.run.select_module_cls"),
         patch(
             "exp.run.ModelSummary", return_value=MagicMock(__str__=lambda s: "summary")
         ),
     ):
         _display_startup(
-            cfg, info, n_train=100, n_val=50, n_test=50, avg_deg=2.0, n_folds=3
+            cfg,
+            info,
+            n_nodes=200,
+            n_edges=400,
+            n_train=100,
+            n_val=50,
+            n_test=50,
+            avg_deg=2.0,
+            n_folds=3,
+            directed=False,
+        )
+
+
+def test_display_startup_sheaf_attn_branch():
+    from exp.config import ModelConfig, ModelType
+    from exp.run import _display_startup
+
+    cfg = _make_cfg()
+    # Override model type to SHEAF_ATTN
+    cfg.model = ModelConfig(type=ModelType.SHEAF_ATTN, variant="sheafan")
+    info = _make_info()
+    with (
+        patch("exp.run.select_module_cls"),
+        patch(
+            "exp.run.ModelSummary",
+            return_value=MagicMock(__str__=lambda s: "attn-summary"),
+        ),
+    ):
+        _display_startup(
+            cfg,
+            info,
+            n_nodes=200,
+            n_edges=400,
+            n_train=100,
+            n_val=50,
+            n_test=50,
+            avg_deg=3.5,
+            n_folds=2,
+            directed=True,
         )
 
 

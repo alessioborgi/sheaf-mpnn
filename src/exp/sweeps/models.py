@@ -51,6 +51,11 @@ class OptunaConfig(BaseModel):
     nruns_per_study: int = 0
     """Deprecated and ignored: sweeps always log one WandB run per trial
     (as_multirun), so each trial is its own row in the project table."""
+    budget_states: Literal["finished", "complete"] = "finished"
+    """Which trial states consume the n_trials budget. "finished" (default)
+    counts COMPLETE+PRUNED+FAIL; "complete" counts only COMPLETE, so failed or
+    duplicate-skipped trials do not eat the budget -- use it to top a study up
+    to n_trials successful trials."""
     cuda: int = 0
     seed: int = 42
 
@@ -60,6 +65,9 @@ class DatasetSpec(BaseModel):
 
     name: str
     root: str = "exp/data"
+    directed: bool = False
+    """Keep the graph's original directed edges (datasets with a directed
+    variant only); the default symmetrises, matching ``sheaf run``."""
 
 
 def _valid_sweep_param_names() -> frozenset[str]:

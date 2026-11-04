@@ -39,9 +39,9 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 from rich.table import Table
 
-from exp.config import Config
+from exp.config import Config, ModelType
 from exp.data import DatasetInfo, SheafDataModule
-from exp.module import SheafLightningModule
+from exp.module import select_module_cls
 from exp.registries.presets import preset_registry
 from sheaf_mpnn.utils import setup_torch
 
@@ -125,6 +125,15 @@ def _make_logger(
     )
 
 
+def finish_wandb_run(logger: object) -> None:
+    """Close the fold's W&B run; Lightning otherwise reuses it for the next fold."""
+    if not logger:
+        return
+    import wandb  # lazy - wandb is optional
+
+    wandb.finish()
+
+
 def _model_label(cfg: Config) -> str:
     """Short identifier for logging and W&B run names."""
     return f"{cfg.model.type}-{cfg.model.variant}"
@@ -150,8 +159,9 @@ def _run_fold(
         num_workers=cfg.hardware.num_workers,
         pin_memory=cfg.hardware.pin_memory,
         persistent_workers=cfg.hardware.persistent_workers,
+        to_undirected=not cfg.dataset.directed,
     )
-    module = SheafLightningModule(cfg, info)
+    module = select_module_cls(cfg)(cfg, info)
     logger = _make_logger(cfg, info, fold, run_name)
 
     with tempfile.TemporaryDirectory() as ckpt_dir:
@@ -181,8 +191,11 @@ def _run_fold(
             log_every_n_steps=1,
         )
 
-        trainer.fit(module, dm)
-        [test_res] = trainer.test(module, dm, ckpt_path="best", verbose=False)
+        try:
+            trainer.fit(module, dm)
+            [test_res] = trainer.test(module, dm, ckpt_path="best", verbose=False)
+        finally:
+            finish_wandb_run(logger)
 
     return float(test_res.get(f"test_{info.metric}", 0.0))
 
@@ -195,22 +208,35 @@ def _run_fold(
 def _display_startup(
     cfg: Config,
     info: DatasetInfo,
+    n_nodes: int,
+    n_edges: int,
     n_train: int,
     n_val: int,
     n_test: int,
     avg_deg: float,
     n_folds: int,
+    directed: bool,
 ) -> None:
-    model_line = (
-        f"{cfg.model.type.upper()}-{cfg.model.variant}  "
-        f"d={cfg.model.stalk_dim}  hidden={cfg.model.hidden_dim}  "
-        f"layers={cfg.model.num_layers}  alpha={cfg.model.alpha}  "
-        f"dropout={cfg.reg.dropout}"
-    )
-    summary = str(ModelSummary(SheafLightningModule(cfg, info), max_depth=1))
+    if cfg.model.type == ModelType.SHEAF_ATTN:
+        model_line = (
+            f"SheafAttn-{cfg.model.variant}  "
+            f"d={cfg.model.stalk_dim}  hidden={cfg.model.hidden_dim}  "
+            f"layers={cfg.model.num_layers}  heads={cfg.model.num_heads}  "
+            f"dropout={cfg.reg.dropout}"
+        )
+    else:
+        model_line = (
+            f"{cfg.model.type.upper()}-{cfg.model.variant}  "
+            f"d={cfg.model.stalk_dim}  hidden={cfg.model.hidden_dim}  "
+            f"layers={cfg.model.num_layers}  alpha={cfg.model.alpha}  "
+            f"dropout={cfg.reg.dropout}"
+        )
+
+    summary = str(ModelSummary(select_module_cls(cfg)(cfg, info), max_depth=1))
     content = (
         f"[bold]Dataset[/bold]  {info.name}  "
-        f"N={info.num_features:,}  E={info.num_features:,}  avg_deg={avg_deg:.1f}\n"
+        f"N={n_nodes:,}  E={n_edges:,} ({'directed' if directed else 'undirected'})  "
+        f"avg_deg={avg_deg:.1f}\n"
         f"         F={info.num_features}  C={info.num_classes}  metric={info.metric}\n"
         f"[bold]Split[/bold]    train={n_train:,}  val={n_val:,}  test={n_test:,}  "
         f"({n_folds}-fold CV)\n"
@@ -250,15 +276,32 @@ def run(cfg: Config) -> list[float]:
     _silence_third_party()
     setup_torch(precision="high", seed=cfg.cv.seed)
 
-    dm_meta = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=0)
+    dm_meta = SheafDataModule(
+        cfg.dataset.name,
+        root=cfg.dataset.root,
+        fold=0,
+        to_undirected=not cfg.dataset.directed,
+    )
     dm_meta.setup()
     info = dm_meta.info
     n_folds = min(cfg.cv.folds, info.num_splits)
 
     n_train, n_val, n_test = dm_meta.split_sizes
-    avg_deg = (dm_meta.num_edges * 2) / dm_meta.num_nodes
+    n_edges = dm_meta.num_edges_total  # directed edge_index column count
+    avg_deg = n_edges / dm_meta.num_nodes
 
-    _display_startup(cfg, info, n_train, n_val, n_test, avg_deg, n_folds)
+    _display_startup(
+        cfg,
+        info,
+        dm_meta.num_nodes,
+        n_edges,
+        n_train,
+        n_val,
+        n_test,
+        avg_deg,
+        n_folds,
+        dm_meta.is_directed,
+    )
 
     monitor = "val_loss" if cfg.optim.stop_strategy == "loss" else f"val_{info.metric}"
     ckpt_mode = "min" if cfg.optim.stop_strategy == "loss" else "max"

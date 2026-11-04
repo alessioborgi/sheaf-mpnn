@@ -87,6 +87,27 @@ def test_optuna_config_defaults():
     assert isinstance(config.config, OptunaConfig)
     assert config.config.n_trials == 100  # Default fallback check
     assert config.config.study_name == "nsd-sweep"
+    assert config.config.budget_states == "finished"
+
+
+def test_budget_states_complete_accepted():
+    raw_data = {
+        "model": "nsd",
+        "search_space": {},
+        "config": {"budget_states": "complete"},
+    }
+    assert SweepConfig.model_validate(raw_data).config.budget_states == "complete"
+
+
+def test_budget_states_invalid_value_raises():
+    with pytest.raises(ValidationError):
+        SweepConfig.model_validate(
+            {
+                "model": "nsd",
+                "search_space": {},
+                "config": {"budget_states": "everything"},
+            }
+        )
 
 
 def test_dataset_spec_name_and_root():
@@ -123,7 +144,7 @@ def test_sweep_config_dataset_override():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("model", ["nsd"])
+@pytest.mark.parametrize("model", ["nsd", "nsp", "sheaf_attn"])
 def test_valid_model_types_accepted(model):
     cfg = SweepConfig.model_validate({"model": model, "search_space": {}})
     assert cfg.model == model
@@ -170,3 +191,68 @@ def test_multiple_unknown_keys_all_reported():
             }
         )
     assert "bad_one" in str(exc.value) or "bad_two" in str(exc.value)
+
+
+def test_dataset_spec_directed_default_false():
+    spec = DatasetSpec.model_validate({"name": "cora"})
+    assert spec.directed is False
+
+
+def test_dataset_spec_directed_parses():
+    spec = DatasetSpec.model_validate({"name": "roman_empire", "directed": True})
+    assert spec.directed is True
+
+
+def test_directed_nsd_presets_keep_directed_dataset():
+    from exp.config import ModelType
+    from exp.registries.presets import preset_registry
+
+    for name in ("roman_empire_directed_nsd_orthogonal", "synthetic_directed_nsd"):
+        cfg = preset_registry.get(name)
+        assert cfg.dataset.directed is True
+        assert cfg.model.type == ModelType.DIRECTED_NSD
+
+
+def test_directed_only_datasets_registered():
+    from exp.registries.datasets import dataset_registry
+
+    assert dataset_registry.get("telegram").metric == "acc"
+    assert dataset_registry.get("dataset_nodes500_alpha0.1_beta0.4").metric == "acc"
+
+
+def test_sweep_datamodule_honours_directed(monkeypatch):
+    """The directed flag must reach SheafDataModule as to_undirected=False.
+
+    Guards against the silent regression where presets/YAMLs set
+    dataset.directed=True but the sweep trains on the symmetrised graph.
+    """
+    import optuna
+
+    import exp.sweeps.sweep as sweep_mod
+    from exp.registries.presets import preset_registry
+
+    captured = {}
+
+    class _SpyDM:
+        def __init__(self, name, root="exp/data", fold=0, **kwargs):
+            captured.update(kwargs, name=name)
+            raise RuntimeError("spy stop")
+
+    monkeypatch.setattr(sweep_mod, "SheafDataModule", _SpyDM)
+    sweep_cfg = SweepConfig.model_validate(
+        {
+            "model": "directed_nsd",
+            "search_space": {},
+            "config": {"n_seeds_per_trial": 1},
+        }
+    )
+    base_cfg = preset_registry.get("roman_empire_directed_nsd_orthogonal")
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study = optuna.create_study(direction="maximize")
+    trial = study.ask()
+    try:
+        sweep_mod._run_trial(trial, sweep_cfg, base_cfg)
+    except Exception:
+        pass  # the spy aborts the trial by design
+    assert captured.get("name") == "roman_empire"
+    assert captured.get("to_undirected") is False

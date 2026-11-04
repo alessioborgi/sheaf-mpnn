@@ -1,30 +1,100 @@
 [project]
 name = "sheaf_mpnn"
 version = "0.1.0"
-description = "Sheaf Message Passing Neural Networks"
+description = "Sheaf-MPNN: a PyTorch Geometric library and benchmark suite for Sheaf Neural Networks as message passing"
 readme = "README.md"
-authors = [{ name = "Your Name", email = "your.email@example.com" }]
-requires-python = ">=3.13,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Alessio Borgi" },
+    { name = "Mario Severino" },
+    { name = "Luke Braithwaite" },
+    { name = "Steve Azzolin" },
+    { name = "Rémi Bourgerie" },
+    { name = "Olga Zaghen" },
+    { name = "Emanuele Mule" },
+    { name = "Riccardo Ali" },
+    { name = "Leo Minh Kustermann" },
+    { name = "Edoardo Coppola" },
+    { name = "Antonio Purificato" },
+    { name = "Stefano Fiorini" },
+    { name = "Christopher Irwin" },
+    { name = "Filippo Spiga" },
+    { name = "Fabrizio Silvestri" },
+    { name = "Michael Bronstein" },
+    { name = "Pietro Liò" },
+]
+maintainers = [{ name = "Alessio Borgi" }]
+keywords = [
+    "sheaf neural networks",
+    "graph neural networks",
+    "message passing",
+    "pytorch",
+    "pytorch-geometric",
+    "geometric deep learning",
+    "topological deep learning",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+requires-python = ">=3.11"
+# The library itself (sheaf_mpnn, hetsheaf_mpnn) only needs these.  Everything
+# the `sheaf` CLI, sweeps, benchmarks and notebooks need lives in the extras.
 dependencies = [
-    "torch==2.8.0",
-    "torch-geometric",
-    "torch-scatter",
-    "torch-sparse",
-    "pyg-lib",
-    "lightning==2.6.0",
+    "torch>=2.6",
+    "torch-geometric>=2.6",
     "numpy>=1.26.0",
+    "scipy>=1.11.0",
+]
+
+[project.optional-dependencies]
+# Fast C++/CUDA householder kernel; a numerically identical native fallback is
+# used when it is missing or fails to build.
+householder = ["torch-householder>=1.0.1"]
+# The `sheaf` command line: training, datasets, presets, sweeps.
+experiments = [
+    "lightning>=2.5",
     "scikit-learn>=1.3.0",
     "rich>=13.0.0",
     "tyro>=0.8.0",
     "optuna>=3.6.0",
-    "pydantic>=2.13.3",
-    "wandb>=0.26.1",
-    "optuna-integration[wandb]>=4.8.0",
+    "pydantic>=2.10",
     "pandas>=2.0.0",
-    "matplotlib>=3.7.0",
-    "ipykernel>=6.0.0",
-    "torch-householder>=1.0.1",
+    "gdown>=5.0.0",
+    "ogb>=1.3.6",
+    "torch-geometric-signed-directed>=1.0.0",
+    "sentence-transformers>=3.0.0",
 ]
+wandb = [
+    "wandb>=0.19",
+    "optuna-integration[wandb]>=4.0",
+]
+# Efficiency benchmark against the original NSD code (SLURM submission, plots).
+benchmark = [
+    "submitit>=1.5.0",
+    "matplotlib>=3.8.0",
+]
+notebooks = [
+    "notebook>=7.0",
+    "ipykernel>=6.0",
+    "matplotlib>=3.8.0",
+]
+all = ["sheaf_mpnn[householder,experiments,wandb,benchmark,notebooks]"]
+
+[project.urls]
+Homepage = "https://github.com/alessioborgi/sheaf-mpnn"
+Documentation = "https://alessioborgi.github.io/sheaf-mpnn"
+Repository = "https://github.com/alessioborgi/sheaf-mpnn"
+Issues = "https://github.com/alessioborgi/sheaf-mpnn/issues"
+Changelog = "https://github.com/alessioborgi/sheaf-mpnn/blob/main/CHANGELOG.md"
 
 [project.scripts]
 sheaf = "exp.cli:main"
@@ -32,8 +102,14 @@ sheaf = "exp.cli:main"
 [tool.uv]
 package = true
 environments = ["sys_platform == 'darwin'", "sys_platform == 'linux'", "sys_platform == 'win32'"]
+default-groups = ["dev", "pyg-ext"]
+# The locked development environment stays on the torch build the PyG
+# extension wheels below were made for.
+# Published metadata only requires torch>=2.6.
+constraint-dependencies = ["torch==2.8.0"]
 
 [tool.uv.sources]
+sheaf-mpnn = { workspace = true }
 # Direct Wheel Links for PyG Extensions
 torch = [
     { index = "torch-cu128", marker = "sys_platform == 'win32'" }
@@ -60,26 +136,31 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [dependency-groups]
+# Optional compiled PyG extensions (speed only; nothing imports them directly).
+# The pinned wheels below are cp313 builds, hence the marker.
+pyg-ext = [
+    "torch-scatter; python_version == '3.13'",
+    "torch-sparse; python_version == '3.13'",
+    "pyg-lib; python_version == '3.13'",
+]
+docs = [
+    "sphinx>=8.1",
+    "furo>=2024.8.6",
+    "myst-parser>=4.0",
+    "sphinx-autoapi>=3.4",
+    "sphinx-copybutton>=0.5.2",
+]
 dev = [
+    # Plain `uv sync` gives the full locked environment (CLI, sweeps, notebooks).
+    "sheaf-mpnn[all]",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "ruff>=0.6.0",
     "mypy>=1.11.0", # Type checking is vital for GNN shapes
     "pytest-github-actions-annotate-failures>=0.2.0",
     "prek>=0.4.0",
-    "ty==0.0.42",
-]
-
-docs = [
-    "sphinx>=7.4.0",
-    "pydata-sphinx-theme>=0.16.0",
-    "myst-parser>=3.0.0",
-    "linkify-it-py>=2.0.3",
-    "sphinx-autodoc-typehints>=2.3.0",
-    "sphinx-copybutton>=0.5.2",
-    "sphinx-design>=0.6.1",
-    "sphinxext-opengraph>=0.9.1",
-    "matplotlib>=3.10.9",
+    "ty>=0.0.42",
+    "matplotlib>=3.8.0",
 ]
 
 [build-system]
@@ -87,12 +168,29 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sheaf_mpnn", "src/exp"]
+packages = ["src/sheaf_mpnn", "src/hetsheaf_mpnn", "src/exp"]
+# Dataset files are downloaded on demand (never committed), but a checkout may
+# have them symlinked under src/exp/data — keep them out of built wheels.
+exclude = ["src/exp/data/directed/**", "src/exp/data/synthetic/**"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/sheaf_mpnn",
+    "src/hetsheaf_mpnn",
+    "src/exp",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CITATION.cff",
+    "pyproject.toml",
+]
+exclude = ["src/exp/data/**", "**/__pycache__"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 minversion = "7.0"
-addopts = "-ra -q --cov=src/sheaf_mpnn --cov=src/exp --cov-report=term-missing -m 'not integration'"
+addopts = "-ra -q --cov=src/sheaf_mpnn --cov=src/hetsheaf_mpnn --cov=src/exp --cov-report=term-missing -m 'not integration'"
 markers = [
     "integration: marks tests as integration tests (slow, requires network/data)"
 ]
@@ -104,21 +202,23 @@ filterwarnings = [
     # d=1 stalk  0 Cayley params  nn.Linear(hidden, 0) triggers this at init;
     # it is harmless (a true no-op), so suppress it globally.
     "ignore:Initializing zero-element tensors is a no-op:UserWarning",
+    # ogb -> outdated imports pkg_resources; harmless until ogb drops it.
+    "ignore:pkg_resources is deprecated as an API:UserWarning",
 ]
 testpaths = ["tests"]
 
 [tool.ty.src]
-# Notebooks and the Sphinx config are not part of the shipped package; the
-# tutorial notebook intentionally uses optional imports (umap, docutils).
-exclude = ["notebooks/", "docs/"]
+# external/neural-sheaf-diffusion is a vendored third-party submodule pinned
+# to Python 3.9 / PyTorch 1.11.0; it is run via its own isolated venv (see
+# scripts/benchmark/setup_original_env.sh), not imported by our first-party
+# code, and does not type-check cleanly against this repo's Python 3.13 env.
+exclude = ["external"]
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py311"
 src = ["src"]
-# The tutorial notebook is prose-first example code; keep lint focused on the
-# shipped package and test suite.
-extend-exclude = ["notebooks"]
+extend-exclude = ["external"]
 
 [tool.ruff.lint]
 # Expanded selection for better code quality
@@ -140,8 +240,14 @@ ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.per-file-ignores]
+"notebooks/*.ipynb" = [
+    "E402",  # imports after non-import code is normal in notebooks
+    "E501",  # long lines are common in notebook prose and f-strings
+]
+
 [tool.ruff.lint.isort]
-known-first-party = ["sheaf_mpnn", "exp"]
+known-first-party = ["sheaf_mpnn", "hetsheaf_mpnn", "exp"]
 
 [tool.coverage.report]
 show_missing = true

@@ -10,7 +10,13 @@ import pytest
 
 from exp.registries.datasets import DatasetEntry, DatasetRegistry, dataset_registry
 
-# All 16 datasets expected in the registry.
+# All datasets expected in the registry: the 16 undirected benchmarks plus the
+# directed-only sources (telegram and the 24 DSBM synthetic graphs).
+_SYNTHETIC = {
+    f"dataset_nodes500_alpha{a}_beta{b}"
+    for a in ("0.05", "0.08", "0.1")
+    for b in ("0.05", "0.1", "0.15", "0.2", "0.25", "0.3", "0.35", "0.4")
+}
 _ALL = {
     "cora",
     "citeseer",
@@ -28,7 +34,12 @@ _ALL = {
     "questions",
     "roman_empire",
     "tolokers",
-}
+    "telegram",
+    "ogbn_arxiv",
+    "ogbn_products",
+    "ogbn_proteins",
+    "pokec",
+} | _SYNTHETIC
 
 _NPZ = {
     "cora",
@@ -41,7 +52,16 @@ _NPZ = {
     "wisconsin",
     "film",
 }
-_ROC_AUC = {"minesweeper", "questions", "tolokers"}
+_ROC_AUC = {"minesweeper", "questions", "tolokers", "ogbn_proteins"}
+
+# Datasets that do not carry the default 10 folds: OGB ships one official
+# split; LINKX pokec ships five.
+_NUM_SPLITS_OVERRIDES = {
+    "ogbn_arxiv": 1,
+    "ogbn_products": 1,
+    "ogbn_proteins": 1,
+    "pokec": 5,
+}
 
 
 class TestDatasetRegistryContents:
@@ -80,9 +100,10 @@ class TestDatasetRegistryContents:
         }
         assert acc == _ALL - _ROC_AUC
 
-    def test_all_have_ten_splits(self):
+    def test_num_splits(self):
         for name in dataset_registry.list_keys():
-            assert dataset_registry.get(name).num_splits == 10
+            expected = _NUM_SPLITS_OVERRIDES.get(name, 10)
+            assert dataset_registry.get(name).num_splits == expected
 
     def test_unknown_key_raises(self):
         with pytest.raises(KeyError):

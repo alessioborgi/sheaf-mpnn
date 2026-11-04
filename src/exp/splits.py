@@ -7,8 +7,10 @@
 Two split strategies are used depending on the dataset:
 
 ``npz_file``
-    Pre-computed 60 / 20 / 20 splits stored as
+    Pre-computed 48/32/20 splits stored as
     ``exp/splits/<dataset>_split_0.6_0.2_<fold>.npz``.
+    The ``0.6_0.2`` in the filename is the historical Geom-GCN naming; the
+    masks inside are actually ~48% train / 32% val / 20% test.
     Each file has keys ``train_mask``, ``val_mask``, ``test_mask`` - 1-D boolean
     arrays of length N.  Used for: cora, citeseer, chameleon, squirrel,
     cornell, texas, film.
@@ -48,9 +50,23 @@ _GEOM_GCN_BASE = "https://github.com/graphdml-uiuc-jlu/geom-gcn/raw/master/split
 
 
 def _download_split(name: str, fold: int, path: str) -> None:
-    """Download the canonical Geom-GCN split for *name* / *fold* to *path*."""
-    url = f"{_GEOM_GCN_BASE}/{name}_split_0.6_0.2_{fold}.npz"
+    """Fetch the canonical Geom-GCN split for *name* / *fold* to *path*.
+
+    The mirror on this repository's dataset release is tried first -- it pins
+    the exact bytes our results were produced with -- and the upstream
+    Geom-GCN repository is the fallback.
+    """
+    filename = f"{name}_split_0.6_0.2_{fold}.npz"
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    try:
+        from exp.datasets.assets import ensure_asset  # noqa: PLC0415
+
+        ensure_asset(filename, path)
+        return
+    except Exception:
+        print(f"[splits] mirror unavailable for {filename}; trying upstream ...")
+
+    url = f"{_GEOM_GCN_BASE}/{filename}"
     print(f"[splits] Downloading {url} ...")
     try:
         urllib.request.urlretrieve(url, path)
@@ -72,7 +88,7 @@ def _apply_npz_split(data: Data, name: str, fold: int) -> Data:
     If the file is absent it is downloaded automatically from the canonical
     Geom-GCN repository (Pei et al. 2020) before loading.
     """
-    # Split files follow the fixed 60/20/20 naming scheme used by the benchmarks.
+    # Filename keeps the historical 0.6_0.2 label; actual masks are 48/32/20.
     path = os.path.join(_SPLITS_DIR, f"{name}_split_0.6_0.2_{fold}.npz")
 
     if not os.path.isfile(path):
@@ -115,19 +131,14 @@ def _apply_pyg_mask_split(data: Data, fold: int) -> Data:
 def apply_split(data: Data, info: DatasetInfo, fold: int) -> Data:
     """Return a *clone* of *data* with 1-D boolean masks for the given fold.
 
-    Parameters
-    ----------
-    data:
-        The full graph dataset (masks may be multi-column at this point).
-    info:
-        Metadata returned by :func:`~exp.data.load_dataset`.
-    fold:
-        Zero-based fold index in ``[0, info.num_splits)``.
+    Args:
+        data: The full graph dataset (masks may be multi-column at this point).
+        info: Metadata returned by :func:`~exp.data.load_dataset`.
+        fold: Zero-based fold index in ``[0, info.num_splits)``.
 
     Returns:
-    -------
-    A cloned ``Data`` object whose ``train_mask``, ``val_mask``, and
-    ``test_mask`` are 1-D boolean tensors of length N.
+        A cloned ``Data`` object whose ``train_mask``, ``val_mask``, and
+        ``test_mask`` are 1-D boolean tensors of length N.
     """
     if info.split_type == "npz_file":
         return _apply_npz_split(data, info.name, fold)

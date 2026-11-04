@@ -1,0 +1,28 @@
+# PLACEHOLDER: these are the original repo's own argparse defaults
+# (exp/parser.py), not tuned hyperparameters from its paper. Replace with
+# real tuned values (matching d/hidden_channels/layers to the "ours" side)
+# before running a real benchmark.
+d: 6
+hidden_channels: 128
+layers: 5
+epochs: 1500
+lr: 0.01
+weight_decay: 0.0005
+sheaf_decay: null
+early_stopping: 200
+stop_strategy: loss
+normalised: true
+deg_normalised: false
+linear: false
+input_dropout: 0.0
+dropout: 0.0
+left_weights: true
+right_weights: true
+add_lp: false
+add_hp: false
+use_act: true
+second_linear: false
+orth: householder
+sheaf_act: tanh
+edge_weights: true
+sparse_learner: false

@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+# Permissions are required for the coverage bot to comment on Private Repo PRs
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_NO_CACHE: "true"
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run Ruff
+        # Use the lockfile-pinned ruff so CI matches local prek/format exactly.
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+      - name: Run ty
+        run: |
+          uv run ty check .
+
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run Unit Tests with Coverage
+        # Run everything except integration tests
+        run: |
+          uv run pytest tests/ -m "not integration" \
+            --cov=src/sheaf_mpnn \
+            --cov=src/hetsheaf_mpnn \
+            --cov=src/exp \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term-missing
+
+      - name: Post Coverage Comment
+        # Only run this on Pull Requests to avoid spamming main branch commits
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.13'
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          pytest-xml-coverage-path: ./coverage.xml
+          title: "📊 Coverage Report (Py3.13)"
+          badge-title: "Coverage"
+          hide-badge: false
+          hide-report: false
+          create-new-comment: true
+
+      - name: Archive HTML Coverage Report
+        # This lets you download the interactive 'red/green' report from the Action summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-coverage-report-py${{ matrix.python-version }}
+          path: htmlcov/
+
+  portability:
+    # Installs from the package metadata, as `pip install` users do, rather than
+    # from uv.lock, so the declared version ranges and platforms stay honest.
+    name: Unlocked install (${{ matrix.os }}, Python ${{ matrix.python-version }}, ${{ matrix.resolution }})
+    runs-on: ${{ matrix.os }}
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python-version: "3.11", resolution: highest }
+          - { os: ubuntu-latest, python-version: "3.11", resolution: lowest-direct }
+          - { os: ubuntu-latest, python-version: "3.12", resolution: highest }
+          - { os: ubuntu-latest, python-version: "3.13", resolution: highest }
+          - { os: macos-latest, python-version: "3.13", resolution: highest }
+          - { os: windows-latest, python-version: "3.13", resolution: highest }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        if: runner.os == 'Linux'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install from package metadata
+        run: |
+          uv venv
+          # --no-config --no-sources: ignore the lock-only pins in [tool.uv].
+          uv pip install --no-config --no-sources ".[experiments,wandb,benchmark]" "pytest>=8" "pytest-cov>=5" --torch-backend cpu --resolution ${{ matrix.resolution }}
+
+      - name: Run unit tests
+        run: uv run --no-sync --no-project pytest tests/ -m "not integration" --no-cov

@@ -1,0 +1,97 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "Sheaf-MPNN: A Library for Sheaf Neural Networks as Message Passing"
+abstract: >-
+  A PyTorch Geometric library that reformulates sheaf diffusion as local
+  incidence-wise transport and aggregation, with fifteen families of Sheaf
+  Neural Networks under a unified message-passing framework and a unified
+  benchmarking suite.
+type: software
+authors:
+  - family-names: Borgi
+    given-names: Alessio
+  - family-names: Severino
+    given-names: Mario
+  - family-names: Braithwaite
+    given-names: Luke
+  - family-names: Azzolin
+    given-names: Steve
+  - family-names: Bourgerie
+    given-names: Rémi
+  - family-names: Zaghen
+    given-names: Olga
+  - family-names: Mule
+    given-names: Emanuele
+  - family-names: Ali
+    given-names: Riccardo
+  - family-names: Kustermann
+    given-names: Leo Minh
+  - family-names: Coppola
+    given-names: Edoardo
+  - family-names: Purificato
+    given-names: Antonio
+  - family-names: Fiorini
+    given-names: Stefano
+  - family-names: Irwin
+    given-names: Christopher
+  - family-names: Spiga
+    given-names: Filippo
+  - family-names: Silvestri
+    given-names: Fabrizio
+  - family-names: Bronstein
+    given-names: Michael
+  - family-names: Liò
+    given-names: Pietro
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/alessioborgi/sheaf-mpnn"
+url: "https://alessioborgi.github.io/sheaf-mpnn/"
+keywords:
+  - sheaf neural networks
+  - graph neural networks
+  - message passing
+  - pytorch
+  - pytorch geometric
+preferred-citation:
+  type: article
+  title: "Sheaf-MPNN: A Library for Sheaf Neural Networks as Message Passing"
+  authors:
+    - family-names: Borgi
+      given-names: Alessio
+    - family-names: Severino
+      given-names: Mario
+    - family-names: Braithwaite
+      given-names: Luke
+    - family-names: Azzolin
+      given-names: Steve
+    - family-names: Bourgerie
+      given-names: Rémi
+    - family-names: Zaghen
+      given-names: Olga
+    - family-names: Mule
+      given-names: Emanuele
+    - family-names: Ali
+      given-names: Riccardo
+    - family-names: Kustermann
+      given-names: Leo Minh
+    - family-names: Coppola
+      given-names: Edoardo
+    - family-names: Purificato
+      given-names: Antonio
+    - family-names: Fiorini
+      given-names: Stefano
+    - family-names: Irwin
+      given-names: Christopher
+    - family-names: Spiga
+      given-names: Filippo
+    - family-names: Silvestri
+      given-names: Fabrizio
+    - family-names: Bronstein
+      given-names: Michael
+    - family-names: Liò
+      given-names: Pietro
+  year: 2026
+  url: "https://arxiv.org/abs/2611.04670"
+  identifiers:
+    - type: other
+      value: "arXiv:2611.04670"

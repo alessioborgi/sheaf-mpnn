@@ -1,0 +1,35 @@
+name: nsd_vs_original
+datasets: [cora, citeseer, pubmed, texas, wisconsin, cornell, film, chameleon, squirrel]
+variants: [diagonal, orthogonal, general]
+
+modes: [convergence, efficiency]
+repeats:
+  folds: 10
+  efficiency_seeds: 20
+  efficiency_epoch_cap: 30
+  warmup_epochs: 5
+
+sides:
+  ours:
+    python: .venv/bin/python
+    config_dir: configs/benchmark/bestconf/ours
+  original:
+    python: external/neural-sheaf-diffusion/.venv/bin/python
+    repo_path: external/neural-sheaf-diffusion
+    variant_map: {diagonal: DiagSheaf, orthogonal: BundleSheaf, general: GeneralSheaf}
+    config_dir: configs/benchmark/bestconf/original
+
+results_dir: results/benchmark/nsd_vs_original
+
+slurm:
+  partition: REQUIRED   # fill in before running: your cluster's GPU partition
+  account: REQUIRED     # fill in before running: your cluster's billing account
+  gres: "gpu:1"
+  cpus_per_task: 4
+  mem_gb: 16
+  timeout_min: 120
+  slurm_array_parallelism: 20
+
+stats:
+  test: wilcoxon
+  alpha: 0.05

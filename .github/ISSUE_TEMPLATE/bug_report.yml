@@ -1,0 +1,35 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The command or a short script that triggers the problem.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback / output
+      render: text
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: >-
+        Output of `python -c "import sys, torch, torch_geometric, sheaf_mpnn;
+        print(sys.version, torch.__version__, torch_geometric.__version__)"`
+        and your operating system.
+      render: text
+    validations:
+      required: true

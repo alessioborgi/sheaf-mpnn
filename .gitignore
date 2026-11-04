@@ -9,7 +9,8 @@ build/
 # IDE
 .idea/
 .vscode/
-.claude/
+
+data/
 
 # Coverage & tests
 .coverage
@@ -18,9 +19,6 @@ coverage.xml
 
 # OS
 .DS_Store
-
-# Jupyter
-.ipynb_checkpoints/
 
 # W&B local artefacts
 wandb/
@@ -34,15 +32,38 @@ wandb/
 # Canonical Geom-GCN split files, auto-downloaded on demand; verified
 # byte-identical (md5) to the npz shipped in the Bodnar et al. repo.
 src/exp/splits/*
-notebooks/exp
-notebooks/lightning_logs
 !src/exp/splits/.gitkeep
 
-# Downloaded dataset files (cached by PyG, downloaded on demand)
-data/
+# Downloaded dataset files (cached by PyG or fetched on demand from the
+# dataset-assets release; never committed)
 exp/data/*
 !exp/data/.gitkeep
 src/exp/data/*
 !src/exp/data/.gitkeep
 checkpoints/
 tmp/
+
+# Figures and rendered images (LaTeX sources + generated PDFs/PNGs)
+figures/
+img/
+
+# Sweep console logs (written next to the study DB by running sweeps)
+*.log
+
+# Local integration notes
+modifications.md
+
+# SLURM / build logs
+*.out
+
+# Local cluster build script
+scripts/build_pyg_ext.sh
+slurm_configs/
+
+# `sheaf sweep` writes <dataset>_<model>_bestconf.yaml to the working directory;
+# curated results are kept under results/bestconf/.
+/*_bestconf.yaml
+
+# Sphinx build output and generated API pages
+docs/_build/
+docs/api/

@@ -7,14 +7,14 @@ import torch
 
 from sheaf_mpnn.base_conv import BaseSheafConv
 from sheaf_mpnn.nsd.nsd_model import NSDModel, NSDVariant
+from sheaf_mpnn.nsp.nsp_model import NSPModel
 
 
-def test_base_conv_stalk_transform():
-    # Covers src/sheaf_mpnn/base_conv.py: _apply_stalk_transform
+def test_base_conv_apply_norm_not_implemented():
+    # Covers BaseSheafConv._apply_norm raising NotImplementedError (base has no impl).
     conv = BaseSheafConv(stalk_dim=2, in_channels=4, hidden_dim=4, add_self_loops=False)
-    x = torch.randn(5, 2, 4)
-    out = conv._apply_stalk_transform(x)
-    assert out.shape == x.shape
+    with pytest.raises(NotImplementedError):
+        conv._apply_norm(None, None, None, None)
 
 
 def test_nsd_model_reset_parameters():
@@ -25,9 +25,33 @@ def test_nsd_model_reset_parameters():
     # Should not raise
 
 
+def test_nsp_model_reset_parameters():
+    # Covers src/sheaf_mpnn/nsp/nsp_model.py:113-116
+    model = NSPModel(
+        in_channels=8, out_channels=3, stalk_dim=2, hidden_dim=4, num_layers=1
+    )
+    model.reset_parameters()
+    # Should not raise
+
+
 def test_nsd_no_self_loops():
     # Covers src/sheaf_mpnn/nsd/nsd_layers.py:94
     model = NSDModel(
+        in_channels=8,
+        out_channels=3,
+        stalk_dim=2,
+        hidden_dim=4,
+        num_layers=1,
+        add_self_loops=False,
+    )
+    x = torch.randn(10, 8)
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+    out = model(x, edge_index)
+    assert out.shape == (10, 3)
+
+
+def test_nsp_no_self_loops():
+    model = NSPModel(
         in_channels=8,
         out_channels=3,
         stalk_dim=2,

@@ -219,3 +219,234 @@ def test_apply_low_rank_norm_rejects_nonfinite_cross_map(monkeypatch):
             stalk_dim=d,
             training=False,
         )
+
+
+def test_detach_degree_diagonal_norm():
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+    self_map = torch.tensor([[1.5, 2.5], [2.0, 3.0]], requires_grad=True)
+    cross_map = torch.tensor([[0.5, 0.5], [0.6, 0.6]], requires_grad=True)
+
+    # 1. Run with detach_degree=True
+    norm_self, norm_cross = _norm.apply_diagonal_norm(
+        self_map, cross_map, edge_index, num_nodes=2, detach_degree=True
+    )
+    loss = norm_self.sum() + norm_cross.sum()
+    loss.backward()
+    assert self_map.grad is not None
+    grad_self_detached = self_map.grad.clone()
+
+    # 2. Reset gradients
+    self_map.grad.zero_()
+
+    # 3. Run with detach_degree=False
+    norm_self_f, norm_cross_f = _norm.apply_diagonal_norm(
+        self_map, cross_map, edge_index, num_nodes=2, detach_degree=False
+    )
+    loss_f = norm_self_f.sum() + norm_cross_f.sum()
+    loss_f.backward()
+    assert self_map.grad is not None
+    grad_self_full = self_map.grad.clone()
+
+    # Gradients w.r.t self_map must differ: degree is detached in the first run
+    assert not torch.allclose(grad_self_detached, grad_self_full)
+
+
+def test_detach_degree_orthogonal_norm():
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+    cross_map = torch.tensor(
+        [[[1.0, 0.0], [0.0, 1.0]], [[0.5, 0.5], [0.5, 0.5]]], requires_grad=True
+    )
+    self_diag = torch.tensor([[1.5, 2.5], [2.0, 3.0]], requires_grad=True)
+
+    # 1. Run with detach_degree=True
+    norm_self, norm_cross = _norm.apply_orthogonal_norm(
+        cross_map, edge_index, num_nodes=2, self_diag=self_diag, detach_degree=True
+    )
+    loss = norm_self.sum() + norm_cross.sum()
+    loss.backward()
+    assert self_diag.grad is not None
+    grad_self_diag_detached = self_diag.grad.clone()
+
+    # 2. Reset gradients
+    self_diag.grad.zero_()
+
+    # 3. Run with detach_degree=False
+    norm_self_f, norm_cross_f = _norm.apply_orthogonal_norm(
+        cross_map, edge_index, num_nodes=2, self_diag=self_diag, detach_degree=False
+    )
+    loss_f = norm_self_f.sum() + norm_cross_f.sum()
+    loss_f.backward()
+    assert self_diag.grad is not None
+    grad_self_diag_full = self_diag.grad.clone()
+
+    assert not torch.allclose(grad_self_diag_detached, grad_self_diag_full)
+
+
+def test_detach_degree_general_norm():
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+    self_map = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+    cross_map = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+
+    # 1. Run with detach_degree=True
+    norm_self, norm_cross = _norm.apply_general_norm(
+        self_map,
+        cross_map,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=True,
+    )
+    loss = norm_self.sum() + norm_cross.sum()
+    loss.backward()
+    assert self_map.grad is not None
+    grad_self_detached = self_map.grad.clone()
+
+    # 2. Reset gradients
+    self_map.grad.zero_()
+
+    # 3. Run with detach_degree=False
+    norm_self_f, norm_cross_f = _norm.apply_general_norm(
+        self_map,
+        cross_map,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=False,
+    )
+    loss_f = norm_self_f.sum() + norm_cross_f.sum()
+    loss_f.backward()
+    assert self_map.grad is not None
+    grad_self_full = self_map.grad.clone()
+
+    assert not torch.allclose(grad_self_detached, grad_self_full)
+
+
+def test_detach_degree_low_rank_norm():
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+    self_map = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+    cross_map = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+
+    # 1. Run with detach_degree=True
+    norm_self, norm_cross = _norm.apply_low_rank_norm(
+        self_map,
+        cross_map,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=True,
+    )
+    loss = norm_self.sum() + norm_cross.sum()
+    loss.backward()
+    assert self_map.grad is not None
+    grad_self_detached = self_map.grad.clone()
+
+    # 2. Reset gradients
+    self_map.grad.zero_()
+
+    # 3. Run with detach_degree=False
+    norm_self_f, norm_cross_f = _norm.apply_low_rank_norm(
+        self_map,
+        cross_map,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=False,
+    )
+    loss_f = norm_self_f.sum() + norm_cross_f.sum()
+    loss_f.backward()
+    assert self_map.grad is not None
+    grad_self_full = self_map.grad.clone()
+
+    assert not torch.allclose(grad_self_detached, grad_self_full)
+
+
+def test_detach_degree_directed_norms():
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+    dst_map = torch.tensor([[1.5, 2.5], [2.0, 3.0]], requires_grad=True)
+    src_map = torch.tensor([[1.0, 2.0], [2.5, 3.5]], requires_grad=True)
+    cross_map = torch.tensor([[0.5, 0.5], [0.6, 0.6]], requires_grad=True)
+
+    # 1. Test apply_directed_diagonal_norm
+    norm_fwd, norm_bwd = _norm.apply_directed_diagonal_norm(
+        dst_map, src_map, cross_map, edge_index, num_nodes=2, detach_degree=True
+    )
+    (norm_fwd.sum() + norm_bwd.sum()).backward()
+    assert dst_map.grad is None
+    assert src_map.grad is None
+
+    norm_fwd_f, norm_bwd_f = _norm.apply_directed_diagonal_norm(
+        dst_map, src_map, cross_map, edge_index, num_nodes=2, detach_degree=False
+    )
+    (norm_fwd_f.sum() + norm_bwd_f.sum()).backward()
+    assert dst_map.grad is not None
+    assert src_map.grad is not None
+
+    # 2. Test apply_directed_general_norm
+    dst_map_mat = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+    src_map_mat = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+    cross_map_mat = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+
+    norm_fwd_g, norm_bwd_g = _norm.apply_directed_general_norm(
+        dst_map_mat,
+        src_map_mat,
+        cross_map_mat,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=True,
+    )
+    (norm_fwd_g.sum() + norm_bwd_g.sum()).backward()
+    assert dst_map_mat.grad is None
+    assert src_map_mat.grad is None
+
+    norm_fwd_gf, norm_bwd_gf = _norm.apply_directed_general_norm(
+        dst_map_mat,
+        src_map_mat,
+        cross_map_mat,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=False,
+    )
+    (norm_fwd_gf.sum() + norm_bwd_gf.sum()).backward()
+    assert dst_map_mat.grad is not None
+    assert src_map_mat.grad is not None
+
+    # 3. Test apply_directed_low_rank_norm
+    dst_map_lr = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+    src_map_lr = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+    cross_map_lr = torch.eye(2).repeat(2, 1, 1).requires_grad_(True)
+
+    norm_fwd_lr, norm_bwd_lr = _norm.apply_directed_low_rank_norm(
+        dst_map_lr,
+        src_map_lr,
+        cross_map_lr,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=True,
+    )
+    (norm_fwd_lr.sum() + norm_bwd_lr.sum()).backward()
+    assert dst_map_lr.grad is None
+    assert src_map_lr.grad is None
+
+    norm_fwd_lrf, norm_bwd_lrf = _norm.apply_directed_low_rank_norm(
+        dst_map_lr,
+        src_map_lr,
+        cross_map_lr,
+        edge_index,
+        num_nodes=2,
+        stalk_dim=2,
+        training=False,
+        detach_degree=False,
+    )
+    (norm_fwd_lrf.sum() + norm_bwd_lrf.sum()).backward()
+    assert dst_map_lr.grad is not None
+    assert src_map_lr.grad is not None

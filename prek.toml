@@ -12,11 +12,13 @@ hooks = [
   { id = "check-added-large-files" }
 ]
 
+# Keep this rev in lockstep with the ruff version in uv.lock: CI formats with
+# the lockfile ruff, so a drifting hook rev reformats files CI then rejects.
 [[repos]]
 repo = "https://github.com/astral-sh/ruff-pre-commit"
 rev = "v0.15.8"
 hooks = [
-  { id = "ruff", args = ["--fix", "--unsafe-fixes"] },
+  { id = "ruff-check", args = ["--fix", "--unsafe-fixes"] },
   { id = "ruff-format" }
 ]
 

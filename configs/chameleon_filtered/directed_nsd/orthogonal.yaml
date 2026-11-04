@@ -1,0 +1,57 @@
+# DirectedNSD sweep on chameleon_filtered - orthogonal restriction map.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/chameleon_filtered/directed_nsd/orthogonal.yaml --preset chameleon_filtered_directed_nsd_orthogonal
+#
+# The preset sets dataset.directed=True: the sweep trains on the original
+# directed edges, which is the point of this family.
+
+model: directed_nsd
+
+# Search space covers the fields the directed_nsd builder consumes; the
+# NSD-only knobs (add_lp/add_hp/sparse_learner/second_linear) are omitted.
+# orth_strategy stays at the preset's "cayley" (the directed layers implement
+# only cayley/fasth).
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 4, 8]
+  hidden_dim:
+    type: categorical
+    choices: [16, 32, 64, 128, 256, 512]
+  num_layers:
+    type: int
+    low: 1
+    high: 8
+  alpha:
+    type: float
+    low: 0.01
+    high: 4.0
+    log: true
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  lr:
+    type: categorical
+    choices: [0.003, 0.0003, 0.00003]
+  weight_decay:
+    type: categorical
+    choices: [0.003, 0.0003, 0.00003]
+  sheaf_decay:
+    type: float
+    low: 0.000001
+    high: 0.1
+    log: true
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Platonov protocol: every trial trains all 10 splits
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: directed-nsd-chameleon-filtered-orthogonal
+  seed: 42
+  storage: sqlite:///directed_nsd_chameleon_filtered_orthogonal.db   # uncomment for distributed / resumable sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

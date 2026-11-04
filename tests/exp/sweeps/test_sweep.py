@@ -64,6 +64,10 @@ def _make_trial(params: dict | None = None) -> MagicMock:
     trial.suggest_categorical.side_effect = lambda n, choices, **kw: p[n]
     trial.suggest_int.side_effect = lambda n, lo, hi, **kw: p[n]
     trial.suggest_float.side_effect = lambda n, lo, hi, **kw: p[n]
+    trial.params = p
+    # spec'd mocks lack `study` (set in Trial.__init__); attach one explicitly.
+    trial.study = MagicMock()
+    trial.study.get_trials.return_value = []
     return trial
 
 
@@ -98,7 +102,7 @@ def _run_mocked(
     trainer_mock.test.return_value = [{f"test_{metric}": val_metric - 0.05}]
     with (
         patch("exp.sweeps.sweep.SheafDataModule", return_value=dm_mock),
-        patch("exp.sweeps.sweep.SheafLightningModule"),
+        patch("exp.sweeps.sweep.select_module_cls"),
         patch("exp.sweeps.sweep.Trainer", return_value=trainer_mock),
         patch("exp.sweeps.sweep.EarlyStopping"),
     ):
@@ -173,11 +177,11 @@ class TestBuildCfg:
     def test_mixed_params_routed_correctly(self):
         cfg = _build_cfg(
             _make_base_cfg(),
-            "nsd",
+            "nsp",
             {"stalk_dim": 3, "input_dropout": 0.2, "lr": 0.005},
         )
         assert cfg.model.stalk_dim == 3
-        assert cfg.model.type == ModelType.NSD
+        assert cfg.model.type == ModelType.NSP
         assert cfg.reg.input_dropout == pytest.approx(0.2)
         assert cfg.optim.lr == pytest.approx(0.005)
 
@@ -225,7 +229,7 @@ class TestRunTrial:
         ]
         with (
             patch("exp.sweeps.sweep.SheafDataModule", return_value=dm_mock),
-            patch("exp.sweeps.sweep.SheafLightningModule"),
+            patch("exp.sweeps.sweep.select_module_cls"),
             patch("exp.sweeps.sweep.Trainer", return_value=trainer_mock),
             patch("exp.sweeps.sweep.EarlyStopping"),
         ):
@@ -253,7 +257,7 @@ class TestRunTrial:
         trainer_mock.validate.return_value = [{"val_acc": 0.75}]
         with (
             patch("exp.sweeps.sweep.SheafDataModule", return_value=dm_mock),
-            patch("exp.sweeps.sweep.SheafLightningModule"),
+            patch("exp.sweeps.sweep.select_module_cls"),
             patch("exp.sweeps.sweep.Trainer", return_value=trainer_mock),
             patch("exp.sweeps.sweep.EarlyStopping"),
         ):
@@ -268,7 +272,7 @@ class TestRunTrial:
         trainer_mock.validate.return_value = [{"val_acc": 0.75}]
         with (
             patch("exp.sweeps.sweep.SheafDataModule", return_value=dm_mock),
-            patch("exp.sweeps.sweep.SheafLightningModule"),
+            patch("exp.sweeps.sweep.select_module_cls"),
             patch("exp.sweeps.sweep.Trainer", return_value=trainer_mock),
             patch("exp.sweeps.sweep.EarlyStopping"),
         ):
@@ -281,12 +285,101 @@ class TestRunTrial:
         trainer_mock.validate.return_value = [{}]  # no val_acc key
         with (
             patch("exp.sweeps.sweep.SheafDataModule", return_value=dm_mock),
-            patch("exp.sweeps.sweep.SheafLightningModule"),
+            patch("exp.sweeps.sweep.select_module_cls"),
             patch("exp.sweeps.sweep.Trainer", return_value=trainer_mock),
             patch("exp.sweeps.sweep.EarlyStopping"),
         ):
             result = _run_trial(_make_trial(), sweep_cfg, base_cfg)
         assert result == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Duplicate-trial skip
+# ---------------------------------------------------------------------------
+
+
+def _frozen_trial_stub(number: int, params: dict, state) -> MagicMock:
+    prev = MagicMock()
+    prev.number = number
+    prev.params = params
+    prev.state = state
+    prev.value = 0.5 if state is optuna.trial.TrialState.COMPLETE else None
+    return prev
+
+
+class TestDuplicateSkip:
+    @pytest.fixture
+    def sweep_cfg(self):
+        return _make_sweep_cfg()
+
+    @pytest.fixture
+    def base_cfg(self):
+        return _make_base_cfg()
+
+    @pytest.mark.parametrize(
+        "state",
+        [
+            optuna.trial.TrialState.COMPLETE,
+            optuna.trial.TrialState.PRUNED,
+            optuna.trial.TrialState.FAIL,
+        ],
+    )
+    def test_duplicate_params_are_pruned(self, sweep_cfg, base_cfg, state):
+        """A config already finished (or crashed) earlier must not re-train."""
+        trial = _make_trial()
+        trial.number = 7
+        prev = _frozen_trial_stub(3, dict(trial.params), state)
+        trial.study.get_trials.return_value = [prev]
+        with pytest.raises(optuna.TrialPruned, match="duplicate of trial 3"):
+            _run_mocked(sweep_cfg, base_cfg, trial=trial)
+
+    def test_different_params_run_normally(self, sweep_cfg, base_cfg):
+        trial = _make_trial()
+        trial.number = 7
+        prev = _frozen_trial_stub(
+            3, {**trial.params, "alpha": 999.0}, optuna.trial.TrialState.COMPLETE
+        )
+        trial.study.get_trials.return_value = [prev]
+        assert isinstance(_run_mocked(sweep_cfg, base_cfg, trial=trial), float)
+
+    def test_trial_is_not_its_own_duplicate(self, sweep_cfg, base_cfg):
+        trial = _make_trial()
+        trial.number = 3
+        prev = _frozen_trial_stub(3, dict(trial.params), optuna.trial.TrialState.FAIL)
+        trial.study.get_trials.return_value = [prev]
+        assert isinstance(_run_mocked(sweep_cfg, base_cfg, trial=trial), float)
+
+
+class TestWandbRunConfigStamping:
+    """Identity fields must reach the W&B run config at trial start, so
+    pruned/failed/crashed runs are not left with null model/dataset columns.
+    """
+
+    def test_identity_fields_stamped_at_trial_start(self):
+        run_mock = MagicMock()
+        with patch("wandb.run", new=run_mock), patch("wandb.log"):
+            _run_mocked(_make_sweep_cfg(), _make_base_cfg())
+        stamped = run_mock.config.update.call_args_list[0].args[0]
+        assert stamped["model"] == "nsd"
+        assert stamped["dataset"] == "cora"
+        assert stamped["transport_type"] == "general"
+        # Identity must land in the summary too: existing W&B tables group by
+        # the summary fields the old wandb.log used to write.
+        summary_keys = {c.args[0] for c in run_mock.summary.__setitem__.call_args_list}
+        assert {"model", "dataset", "transport_type"} <= summary_keys
+
+    def test_duplicate_skip_records_source_trial(self):
+        trial = _make_trial()
+        trial.number = 7
+        prev = _frozen_trial_stub(
+            3, dict(trial.params), optuna.trial.TrialState.COMPLETE
+        )
+        trial.study.get_trials.return_value = [prev]
+        run_mock = MagicMock()
+        with patch("wandb.run", new=run_mock), pytest.raises(optuna.TrialPruned):
+            _run_mocked(_make_sweep_cfg(), _make_base_cfg(), trial=trial)
+        stamped = run_mock.config.update.call_args_list[-1].args[0]
+        assert stamped == {"pruned_duplicate_of": 3}
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +432,14 @@ class TestMain:
     def _chdir_to_tmp(self, monkeypatch, tmp_path):
         monkeypatch.chdir(tmp_path)
 
+    @pytest.fixture(autouse=True)
+    def _mock_final_test(self):
+        # sweep() unconditionally calls _run_final_test, which builds a real
+        # DataModule and downloads the dataset. Stub it so these unit tests
+        # exercise only the study/optimize path without network I/O.
+        with patch("exp.sweeps.sweep._run_final_test", return_value={}):
+            yield
+
     def _make_yaml_file(self, tmp_path: Path, **overrides) -> Path:
         content = {
             "model": "nsd",
@@ -362,6 +463,11 @@ class TestMain:
             "n_seeds": 1,
         }
         study.best_trial.params = {"stalk_dim": 3}
+        # main()'s zero-completed-trials guard checks study.trials for at
+        # least one COMPLETE trial before reading best_trial.
+        completed_trial = MagicMock()
+        completed_trial.state = optuna.trial.TrialState.COMPLETE
+        study.trials = [completed_trial]
         return study
 
     def test_main_creates_study_and_calls_optimize(self, tmp_path):
@@ -585,6 +691,8 @@ class TestE2E:
         trial.suggest_categorical.side_effect = lambda n, choices, **kw: choices[0]
         trial.suggest_int.side_effect = lambda n, lo, hi, **kw: lo
         trial.suggest_float.side_effect = lambda n, lo, hi, **kw: lo
+        trial.study = MagicMock()
+        trial.study.get_trials.return_value = []
 
         toy_dm = _ToyDataModule()
 

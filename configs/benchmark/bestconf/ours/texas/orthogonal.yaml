@@ -1,0 +1,19 @@
+best_params:
+  add_hp: false
+  add_lp: true
+  alpha: 0.43543014767312177
+  dropout: 0.2
+  edge_weights: true
+  hidden_dim: 128
+  input_dropout: 0.2
+  learn_alpha: true
+  lr: 0.003
+  num_layers: 5
+  orth_strategy: fasthpp
+  second_linear: false
+  sheaf_decay: 8.761388035872094e-06
+  sparse_learner: true
+  stalk_dim: 6
+  variant: orthogonal
+  weight_decay: 0.0003
+model: nsd

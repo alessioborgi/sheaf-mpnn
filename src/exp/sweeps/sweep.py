@@ -4,8 +4,8 @@
 
 r"""YAML-driven hyperparameter sweep using Optuna and the model registry.
 
-Usage
------
+Usage::
+
     # Via the unified CLI (recommended):
     sheaf sweep --yaml-path nsd_cora.yaml --preset cora
 
@@ -19,8 +19,8 @@ Usage
     #   config:
     #     storage: sqlite:///sweep.db
 
-Example YAML
-------------
+Example YAML::
+
     model: nsd
     dataset:              # optional  overrides the preset's dataset
       name: texas
@@ -50,9 +50,8 @@ import dataclasses
 import logging
 import random
 import tempfile
-import time
 import warnings
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -64,8 +63,9 @@ from lightning import Trainer
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.utilities.warnings import PossibleUserWarning
 from optuna.study import MaxTrialsCallback
-from optuna.trial import TrialState
+from optuna.trial import FrozenTrial, TrialState
 from rich.console import Console
+from rich.table import Table
 
 from exp.config import (
     Config,
@@ -76,8 +76,9 @@ from exp.config import (
     RegConfig,
 )
 from exp.data import SheafDataModule
-from exp.module import SheafLightningModule
+from exp.module import select_module_cls as _select_homogeneous_module_cls
 from exp.registries.presets import preset_registry
+from exp.resource import resource_metrics, start_resource_tracking
 from exp.sweeps.models import (
     CategoricalParam,
     FloatParam,
@@ -173,29 +174,208 @@ def _silence_training_noise() -> None:
     )
 
 
-def _start_resource_tracking(device: int) -> float:
-    """Reset the CUDA peak-memory counter and mark the fold start time."""
-    if torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats(device)
-    return time.perf_counter()
+# ---------------------------------------------------------------------------
+# Live progress reporting
+# ---------------------------------------------------------------------------
 
+# How often (in finished trials) the full study summary is re-rendered.
+_SUMMARY_EVERY = 10
+_SPARK_CHARS = "▁▂▃▄▅▆▇█"
 
-def _fold_resource_metrics(start: float, device: int, epochs: int) -> dict[str, float]:
-    """Wall-clock and peak-GPU-memory cost of one training fold."""
-    elapsed = time.perf_counter() - start
-    metrics = {
-        "fit_time_s": elapsed,
-        "epoch_time_s": elapsed / max(int(epochs), 1),
-        "epochs_trained": float(epochs),
+# Variant names that shipped sweep YAMLs use as their filename stem.
+_KNOWN_VARIANTS = frozenset(
+    {
+        "diagonal",
+        "general",
+        "orthogonal",
+        "low_rank",
+        "general_attention",
+        "orthogonal_attention",
+        "sheafan",
+        "res_sheafan",
     }
-    if torch.cuda.is_available():
-        metrics["peak_gpu_mem_mb"] = torch.cuda.max_memory_allocated(device) / 2**20
-    return metrics
+)
+
+
+def _is_het_dataset(name: str) -> bool:
+    """Whether ``name`` is one of the HGB heterogeneous datasets."""
+    from exp.datasets.hgb import het_dataset_registry
+
+    return name in het_dataset_registry
+
+
+def _data_module_cls(cfg: Config) -> type[SheafDataModule]:
+    """DataModule class for the configured dataset.
+
+    HGB datasets need ``HetSheafDataModule``, which loads the heterogeneous
+    graph, flattens it with ``to_homogeneous()`` and keeps the node/edge type
+    tensors the het families read. It subclasses ``SheafDataModule`` with the
+    same constructor, so the call sites are unchanged.
+    """
+    if _is_het_dataset(cfg.dataset.name):
+        from exp.datasets.hgb import HetSheafDataModule
+
+        return HetSheafDataModule
+    return SheafDataModule
+
+
+def select_module_cls(cfg: Config):
+    """Lightning module class for the configured (model, dataset) pair.
+
+    Extends the homogeneous selector with the het modules: a ``het_*`` model on
+    an HGB dataset needs ``HetSheafLightningModule``, which forwards the
+    node/edge type tensors and back-fills ``num_node_types`` /
+    ``num_edge_types`` from the dataset before the model is built. Homogeneous
+    sweeps are routed exactly as before.
+    """
+    if "HET_" in str(cfg.model.type).upper() and _is_het_dataset(cfg.dataset.name):
+        from exp.module import HetBayesSheafLightningModule, HetSheafLightningModule
+
+        if cfg.model.type == ModelType.HET_BSNN:
+            return HetBayesSheafLightningModule
+        return HetSheafLightningModule
+    return _select_homogeneous_module_cls(cfg)
+
+
+def _fmt_duration(seconds: float) -> str:
+    """Compact human-readable duration: 90 -> '1m30s', 4000 -> '1h06m'."""
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    if seconds < 3600:
+        return f"{int(seconds // 60)}m{int(seconds % 60):02d}s"
+    return f"{int(seconds // 3600)}h{int(seconds % 3600 // 60):02d}m"
+
+
+def _fmt_param(value: object) -> str:
+    return f"{value:.4g}" if isinstance(value, float) else str(value)
+
+
+def _sparkline(values: list[float], width: int = 60) -> str:
+    """Render the last *width* values as an 8-level block-character strip."""
+    tail = values[-width:]
+    lo, hi = min(tail), max(tail)
+    if hi == lo:
+        return _SPARK_CHARS[0] * len(tail)
+    scale = (len(_SPARK_CHARS) - 1) / (hi - lo)
+    return "".join(_SPARK_CHARS[int((v - lo) * scale)] for v in tail)
+
+
+class _SweepProgress:
+    """Optuna callback: one status line per finished trial, plus a study
+    summary (history sparkline, top trials, importances) every few trials.
+    """
+
+    _DONE = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.FAIL)
+    _COLORS = {"COMPLETE": "green", "PRUNED": "yellow", "FAIL": "red"}
+
+    def __init__(self, n_trials: int) -> None:
+        self._n_trials = n_trials
+
+    def __call__(self, study: optuna.Study, trial: FrozenTrial) -> None:
+        done = [t for t in study.trials if t.state in self._DONE]
+        counts = Counter(t.state for t in done)
+        durations = [t.duration.total_seconds() for t in done if t.duration]
+        eta = "?"
+        if durations:
+            remaining = max(self._n_trials - len(done), 0)
+            eta = _fmt_duration(float(np.mean(durations)) * remaining)
+
+        color = self._COLORS.get(trial.state.name, "white")
+        value = f"{trial.value:.4f}" if trial.value is not None else "-"
+        try:
+            best = study.best_trial
+            best_txt = f"best {best.value:.4f} (#{best.number})"
+        except ValueError:
+            best_txt = "best -"
+        _console.print(
+            f"[{color}]trial {trial.number:>3} {trial.state.name}[/{color}]"
+            f" obj={value} | {len(done)}/{self._n_trials} done"
+            f" (C:{counts[TrialState.COMPLETE]} P:{counts[TrialState.PRUNED]}"
+            f" F:{counts[TrialState.FAIL]}) | {best_txt} | eta {eta}"
+        )
+        if done and (len(done) % _SUMMARY_EVERY == 0 or len(done) >= self._n_trials):
+            self.print_summary(study)
+
+    def print_summary(self, study: optuna.Study) -> None:
+        complete = [t for t in study.trials if t.state is TrialState.COMPLETE]
+        values = [t.value for t in complete if t.value is not None]
+        if not values:
+            return
+        _console.print(
+            f"\n[bold]objective history[/bold] ({len(values)} complete trials,"
+            f" min {min(values):.4f}, max {max(values):.4f})\n"
+            f"  {_sparkline(values)}"
+        )
+
+        table = Table(title="top trials")
+        table.add_column("trial", justify="right")
+        table.add_column("objective", justify="right")
+        table.add_column("val mean +/- std", justify="right")
+        table.add_column("duration", justify="right")
+        ranked = sorted(
+            complete,
+            key=lambda t: t.value if t.value is not None else float("-inf"),
+            reverse=True,
+        )
+        for t in ranked[:5]:
+            mean = t.user_attrs.get("val_mean", t.value or 0.0)
+            std = t.user_attrs.get("val_std", 0.0)
+            dur = _fmt_duration(t.duration.total_seconds()) if t.duration else "-"
+            table.add_row(
+                f"#{t.number}",
+                f"{t.value:.4f}" if t.value is not None else "-",
+                f"{mean:.4f} +/- {std:.4f}",
+                dur,
+            )
+        _console.print(table)
+
+        # Importances need a few complete trials and can fail on degenerate
+        # search spaces; they are a best-effort diagnostic only.
+        if len(complete) >= 4:
+            try:
+                importances = optuna.importance.get_param_importances(study)
+            except Exception:  # noqa: BLE001
+                return
+            _console.print("[bold]param importance[/bold]")
+            for name, imp in list(importances.items())[:10]:
+                bar = "#" * max(1, round(imp * 24))
+                _console.print(f"  {name:<16} {bar} {imp:.2f}")
+        _console.print()
 
 
 # ---------------------------------------------------------------------------
 # Optuna objective
 # ---------------------------------------------------------------------------
+
+
+def _prior_duplicate(trial: optuna.Trial) -> FrozenTrial | None:
+    """Earliest finished trial with the same params as *trial*, if any.
+
+    Storage-backed studies keep finished trials across resumes, so this also
+    catches configurations already tried (or crashed) in a previous sweep run.
+    """
+    done = (TrialState.COMPLETE, TrialState.PRUNED, TrialState.FAIL)
+    for prev in trial.study.get_trials(deepcopy=False, states=done):
+        if prev.number != trial.number and prev.params == trial.params:
+            return prev
+    return None
+
+
+def _set_wandb_run_config(fields: dict) -> None:
+    """Stamp identity fields on the active W&B run at trial start.
+
+    Written to BOTH config and summary: tables/groupings built on the old
+    summary-based identity keep working alongside config-based ones, and the
+    end-of-trial wandb.log never runs for pruned/failed/crashed trials.
+    """
+    try:
+        import wandb
+    except ImportError:
+        return
+    if wandb.run is not None:
+        wandb.run.config.update(fields, allow_val_change=True)
+        for key, value in fields.items():
+            wandb.run.summary[key] = value
 
 
 def _run_trial(
@@ -207,8 +387,32 @@ def _run_trial(
         name: _suggest(trial, name, spec)
         for name, spec in sweep_cfg.search_space.items()
     }
+    param_txt = " ".join(f"{k}={_fmt_param(v)}" for k, v in sorted(params.items()))
+    _console.print(f"[bold cyan]trial {trial.number} start[/bold cyan] {param_txt}")
+
     cfg = _build_cfg(base_cfg, sweep_cfg.model, params)
     optuna_cfg = sweep_cfg.config
+    _set_wandb_run_config(
+        {
+            "model": sweep_cfg.model,
+            "dataset": cfg.dataset.name,
+            "transport_type": cfg.model.variant,
+            "trial_number": trial.number,
+        }
+    )
+
+    # Never re-train a configuration this study already finished (or crashed
+    # on) in an earlier run; prune it so the sampler moves on.
+    dup = _prior_duplicate(trial)
+    if dup is not None:
+        dup_val = f"{dup.value:.4f}" if dup.value is not None else "-"
+        _console.print(
+            f"[yellow]trial {trial.number} skip[/yellow] params identical to"
+            f" trial #{dup.number} ({dup.state.name}, obj={dup_val});"
+            f" pruning duplicate"
+        )
+        _set_wandb_run_config({"pruned_duplicate_of": dup.number})
+        raise optuna.TrialPruned(f"duplicate of trial {dup.number}")
 
     seed_metrics: dict[str, list[float]] = defaultdict(list)
     primary_key: str = ""
@@ -219,13 +423,18 @@ def _run_trial(
         torch.manual_seed(seed)
 
         fold = seed_offset % cfg.cv.folds
-        dm = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=fold)
+        dm = _data_module_cls(cfg)(
+            cfg.dataset.name,
+            root=cfg.dataset.root,
+            fold=fold,
+            to_undirected=not cfg.dataset.directed,
+        )
         dm.setup()
 
         primary_key = f"val_{dm.info.metric}"
         monitor = "val_loss" if cfg.optim.stop_strategy == "loss" else primary_key
         mode = "min" if cfg.optim.stop_strategy == "loss" else "max"
-        module = SheafLightningModule(cfg, dm.info)
+        module = select_module_cls(cfg)(cfg, dm.info)
 
         # Evaluate best-val-epoch weights, not last-epoch weights: with
         # patience 200 the final model is far past its validation peak.
@@ -258,9 +467,9 @@ def _run_trial(
                 logger=False,
                 log_every_n_steps=1,
             )
-            start = _start_resource_tracking(optuna_cfg.cuda)
+            start = start_resource_tracking(optuna_cfg.cuda)
             trainer.fit(module, dm)
-            perf = _fold_resource_metrics(start, optuna_cfg.cuda, trainer.current_epoch)
+            perf = resource_metrics(start, optuna_cfg.cuda, trainer.current_epoch)
 
             val_result = trainer.validate(module, dm, ckpt_path="best", verbose=False)[
                 0
@@ -271,6 +480,16 @@ def _run_trial(
             test_result = trainer.test(module, dm, ckpt_path="best", verbose=False)[0]
         for key, value in {**val_result, **test_result, **perf}.items():
             seed_metrics[key].append(float(value))
+        # .get + isinstance guard: a diverged fold may miss the primary key.
+        val_metric = val_result.get(primary_key)
+        val_txt = f"{val_metric:.4f}" if isinstance(val_metric, int | float) else "-"
+        _console.print(
+            f"[dim]trial {trial.number} fold"
+            f" {seed_offset + 1}/{optuna_cfg.n_seeds_per_trial} seed {seed}:"
+            f" {primary_key}={val_txt}"
+            f" | {perf['epochs_trained']:.0f} ep"
+            f" | {_fmt_duration(perf['fit_time_s'])}[/dim]"
+        )
 
     # Aggregate all metrics across seeds and store as trial attributes for W&B;
     # std is always reported (0.0 for a single seed).
@@ -283,22 +502,13 @@ def _run_trial(
         trial.set_user_attr(f"mean_{key}", aggregated[f"mean_{key}"])
         trial.set_user_attr(f"std_{key}", aggregated[f"std_{key}"])
 
-    # When trials run under as_multirun wandb tracking, attach the aggregates
-    # to this trial's own run (one row per trial in the project table).
+    # Log aggregate metrics only; identity lives in run config. wandb.log writes
+    # the summary, which pruned/failed trials never reach (-> grouped as null).
     try:
         import wandb
 
         if wandb.run is not None:
-            # Identify the run in the project table: dataset, family, map type.
-            wandb.log(
-                aggregated
-                | {
-                    "n_seeds": optuna_cfg.n_seeds_per_trial,
-                    "dataset": cfg.dataset.name,
-                    "model": sweep_cfg.model,
-                    "transport_type": cfg.model.variant,
-                }
-            )
+            wandb.log(aggregated | {"n_seeds": optuna_cfg.n_seeds_per_trial})
     except ImportError:
         pass
 
@@ -341,6 +551,16 @@ def _make_wandb_callbacks(base_cfg: Config, sweep_cfg: SweepConfig) -> list:
             "project": sweep_cfg.config.wandb_project,
             "entity": sweep_cfg.config.wandb_entity,
             "group": sweep_cfg.config.study_name,
+            # Identity in the run config AT CREATION: W&B snapshots the group
+            # key when the run is born, so a mid-run config.update lands too
+            # late and the table buckets the run as null. transport_type is the
+            # fixed variant; the per-trial stamp overrides it if variant is
+            # swept.
+            "config": {
+                "model": sweep_cfg.model,
+                "dataset": base_cfg.dataset.name,
+                "transport_type": base_cfg.model.variant,
+            },
         },
     }
     return [WeightsAndBiasesCallback(**kwargs)]  # pragma: no cover
@@ -367,6 +587,7 @@ def sweep(
             dataset=DatasetConfig(
                 name=sweep_cfg.dataset.name,
                 root=sweep_cfg.dataset.root,
+                directed=sweep_cfg.dataset.directed,
             ),
         )
 
@@ -383,6 +604,32 @@ def sweep(
         pruner=pruner,
         sampler=sampler,
     )
+
+    _console.print(
+        f"[bold]sweep[/bold] study={sweep_cfg.config.study_name!r}"
+        f" model={sweep_cfg.model} variant={base_cfg.model.variant}"
+        f" dataset={base_cfg.dataset.name}"
+        f" trials={sweep_cfg.config.n_trials}"
+        f" seeds/trial={sweep_cfg.config.n_seeds_per_trial}"
+        f" storage={sweep_cfg.config.storage or 'in-memory'}"
+    )
+
+    # Shipped sweeps are named after their variant, which only the preset
+    # actually sets; a wrong --preset silently trains (and logs to W&B) a
+    # different transport_type than the study name claims.
+    stem = yaml_path.stem
+    if (
+        stem in _KNOWN_VARIANTS
+        and "variant" not in sweep_cfg.search_space
+        and stem != base_cfg.model.variant
+    ):
+        _console.print(
+            f"[bold red]WARNING[/bold red] {yaml_path.name} looks like a"
+            f" {stem!r} sweep, but preset {preset!r} sets"
+            f" variant={base_cfg.model.variant!r}: training and the W&B"
+            f" transport_type will use {base_cfg.model.variant!r}."
+            f" Pass the preset documented in the YAML header if unintended."
+        )
 
     wandb_callbacks = (
         _make_wandb_callbacks(base_cfg, sweep_cfg)
@@ -402,14 +649,17 @@ def sweep(
     # FAILED instead of killing the whole sweep.
     # MaxTrialsCallback caps the study's total trial count across resumes and
     # workers; a bare n_trials would add n_trials more on every relaunch.
+    budget_states = (
+        (TrialState.COMPLETE,)
+        if sweep_cfg.config.budget_states == "complete"
+        else (TrialState.COMPLETE, TrialState.PRUNED, TrialState.FAIL)
+    )
     study.optimize(
         objective,
         callbacks=[
             *wandb_callbacks,
-            MaxTrialsCallback(
-                sweep_cfg.config.n_trials,
-                states=(TrialState.COMPLETE, TrialState.PRUNED, TrialState.FAIL),
-            ),
+            _SweepProgress(sweep_cfg.config.n_trials),
+            MaxTrialsCallback(sweep_cfg.config.n_trials, states=budget_states),
         ],
         catch=(RuntimeError,),
     )
@@ -482,14 +732,19 @@ def _run_final_test(
         torch.manual_seed(seed)
 
         fold = seed_offset % cfg.cv.folds
-        dm = SheafDataModule(cfg.dataset.name, root=cfg.dataset.root, fold=fold)
+        dm = _data_module_cls(cfg)(
+            cfg.dataset.name,
+            root=cfg.dataset.root,
+            fold=fold,
+            to_undirected=not cfg.dataset.directed,
+        )
         dm.setup()
 
         monitor = (
             "val_loss" if cfg.optim.stop_strategy == "loss" else f"val_{dm.info.metric}"
         )
         mode = "min" if cfg.optim.stop_strategy == "loss" else "max"
-        module = SheafLightningModule(cfg, dm.info)
+        module = select_module_cls(cfg)(cfg, dm.info)
 
         # Test the best-val-epoch checkpoint, mirroring the reference protocol
         # (test accuracy is read at the epoch with the best validation score).
@@ -518,9 +773,9 @@ def _run_final_test(
                 logger=False,
                 log_every_n_steps=1,
             )
-            start = _start_resource_tracking(optuna_cfg.cuda)
+            start = start_resource_tracking(optuna_cfg.cuda)
             trainer.fit(module, dm)
-            perf = _fold_resource_metrics(start, optuna_cfg.cuda, trainer.current_epoch)
+            perf = resource_metrics(start, optuna_cfg.cuda, trainer.current_epoch)
             test_result = trainer.test(module, dm, ckpt_path="best", verbose=False)[0]
         for key, value in {**test_result, **perf}.items():
             seed_metrics[key].append(float(value))

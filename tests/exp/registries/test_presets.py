@@ -32,8 +32,8 @@ class TestPresetRegistryContents:
         assert base.issubset(registered)
 
     def test_total_preset_count(self):
-        # 16 base NSD aliases + 16*6 NSD variant presets
-        assert len(preset_registry.list_keys()) > 16
+        # 14 base NSD + 14*5 NSD variants + SheafAttn/NSP presets
+        assert len(preset_registry.list_keys()) > 14
 
     def test_unknown_preset_raises(self):
         with pytest.raises(KeyError):
@@ -139,3 +139,47 @@ class TestGenerateConfig:
             weight_decay=5e-4,
         )
         assert cfg.model.type == ModelType.NSD
+
+
+class TestDirectedNSDPresets:
+    _DATASETS = (
+        "roman_empire",
+        "amazon_ratings",
+        "minesweeper",
+        "questions",
+        "tolokers",
+        "chameleon_filtered",
+        "squirrel_filtered",
+        "cora",
+        "citeseer",
+        "pubmed",
+        "telegram",
+    )
+    _VARIANTS = (
+        "diagonal",
+        "general",
+        "orthogonal",
+        "general_attention",
+        "orthogonal_attention",
+        "low_rank",
+    )
+
+    def test_full_grid_registered_and_directed(self):
+        """Every (dataset, variant) cell exists and flips dataset.directed."""
+        for ds in self._DATASETS:
+            for variant in self._VARIANTS:
+                cfg = preset_registry.get(f"{ds}_directed_nsd_{variant}")
+                assert cfg.dataset.directed, (ds, variant)
+                assert cfg.model.type == ModelType.DIRECTED_NSD
+                assert cfg.model.variant == variant
+                # The directed layers implement only cayley/fasth.
+                assert cfg.model.orth_strategy == "cayley"
+
+    @pytest.mark.parametrize("variant", _VARIANTS)
+    def test_builds_directed_model(self, variant):
+        from exp.registries.models import model_registry
+        from sheaf_mpnn.directed_nsd import DirectedNSDModel
+
+        cfg = preset_registry.get(f"roman_empire_directed_nsd_{variant}")
+        model = model_registry.build("directed_nsd", 16, 5, cfg.model, cfg.reg)
+        assert isinstance(model, DirectedNSDModel)

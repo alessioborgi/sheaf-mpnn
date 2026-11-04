@@ -1,0 +1,3 @@
+[submodule "external/neural-sheaf-diffusion"]
+	path = external/neural-sheaf-diffusion
+	url = https://github.com/twitter-research/neural-sheaf-diffusion.git

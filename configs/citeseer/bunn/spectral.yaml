@@ -1,0 +1,101 @@
+# BuNN sweep on citeseer - spectral heat kernel.
+#
+# Bundle Neural Networks (Bamberger et al., ICLR 2025): message *diffusion* on
+# a learned flat vector bundle. Each layer synchronises node features with a
+# per-node orthogonal map, runs the graph heat kernel for a time t, and
+# desynchronises (Lemma 3.1). A single layer couples every pair of nodes, so t
+# -- not depth -- sets the scale at which distant nodes interact.
+#
+# stalk_dim is the bundle dimension d (2 in the paper's experiments) and
+# bunn_num_bundles is how many run in parallel, so the node state is
+# bunn_num_bundles * stalk_dim * hidden_dim wide. Keep that product in mind
+# when reading the width choices below.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/citeseer/bunn/spectral.yaml \
+#     --preset citeseer_bunn
+
+model: bunn
+
+search_space:
+  # d = 2 is the paper's choice throughout: O(2) needs one angle per bundle,
+  # and higher dimensions cost more without helping.
+  stalk_dim:
+    type: categorical
+    choices: [2, 4]
+  bunn_num_bundles:
+    type: categorical
+    choices: [2, 4, 8, 16, 32]
+  hidden_dim:
+    type: categorical
+    choices: [4, 8, 16, 32]
+  num_layers:
+    type: int
+    low: 1
+    high: 8
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  lr:
+    type: categorical
+    choices: [0.02, 0.01, 0.002]
+  weight_decay:
+    type: float
+    low: 0.0000001
+    high: 0.01
+    log: true
+  # Separate decay for phi, the per-node bundle learner -- BuNN's analogue of
+  # the sheaf families' per-edge map generator.
+  sheaf_decay:
+    type: float
+    low: 0.00000001
+    high: 0.01
+    log: true
+
+  bunn_solver:
+    type: categorical
+    choices: [spectral]
+  bunn_tau:
+    type: categorical
+    choices: [0.1, 1.0, 10.0, 100.0]
+  bunn_learn_tau:
+    type: categorical
+    choices: [false, true]
+  bunn_num_eigs:
+    type: categorical
+    choices: [0, 32, 128]
+
+  # phi from Eq. 1. The paper allows any GNN here (unlike NSD, which restricts
+  # it to an MLP) and reports that reading the graph structure helped.
+  bunn_phi:
+    type: categorical
+    choices: [mlp, sum_gnn]
+  bunn_phi_layers:
+    type: int
+    low: 1
+    high: 4
+  bunn_shared_phi:
+    type: categorical
+    choices: [false, true]
+  # Laplacian driving the diffusion. The spectral solver requires "sym".
+  bunn_normalize:
+    type: categorical
+    choices: [sym]
+  # Only read when stalk_dim != 2; d = 2 uses the direct O(2) angle
+  # parameterisation instead.
+  orth_strategy:
+    type: categorical
+    choices: [cayley, fasthpp, householder]
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: bunn-citeseer-spectral
+  seed: 42
+  storage: sqlite:///bunn_citeseer_spectral.db   # for distributed sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

@@ -1,0 +1,14 @@
+best_params:
+  add_hp: false
+  add_lp: false
+  alpha: 0.08977754942882495
+  dropout: 0.7
+  hidden_dim: 512
+  input_dropout: 0.0
+  learn_alpha: false
+  lr: 0.003
+  num_layers: 8
+  second_linear: false
+  stalk_dim: 4
+  weight_decay: 0.003
+model: id_sheaf

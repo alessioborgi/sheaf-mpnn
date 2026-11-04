@@ -142,29 +142,22 @@ class BaseNSDConv(BaseSheafConv):
             size=(num_nodes, num_nodes),
         )
 
+        lap = self.alpha * self.sigma(laplacian_out)
+        if not self.residual:
+            # Return the bare diffusion message when the caller owns the residual.
+            return -lap
         skip = (
             (1 + torch.tanh(self.eps)[None, :, None]) * x_stalk
             if self.add_eps
             else x_stalk
         )
-        return skip - self.alpha * self.sigma(laplacian_out)
+        return skip - lap
 
     @abstractmethod
     def get_map_products(
         self, x_feat: torch.Tensor, edge_index: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Precompute self_map and cross_map restriction-map products per edge."""
-
-    def _build_map_generator(self, out_dim: int, bounded: bool = True) -> nn.Sequential:
-        """Reference-style sheaf learner: single bias-free linear, optionally
-        tanh-bounded so every map entry lies in (-1, 1).
-        """
-        layers: list[nn.Module] = [
-            nn.Linear(self._generator_in_dim(), out_dim, bias=False)
-        ]
-        if bounded:
-            layers.append(nn.Tanh())
-        return nn.Sequential(*layers)
 
 
 class DiagonalNSDConv(BaseNSDConv):
@@ -620,8 +613,103 @@ class LowRankNSDConv(BaseNSDConv):
         return self._append_fixed_block(self_map, cross_map)
 
 
+class ConnectionLaplacianNSDConv(BaseNSDConv):
+    """NSD convolution with connection-Laplacian restriction maps.
+
+    Restriction maps are derived from input node features via local PCA and
+    SVD-based orthogonal alignment — there is no learned map-generator MLP.
+    Because F^T F = I the normalisation and message logic are identical to
+    the orthogonal variant.
+
+    The caller is responsible for passing precomputed per-edge orthogonal
+    transport maps as the ``maps`` argument to ``forward`` / ``get_map_products``.
+    See ``ConnectionLaplacianNSDModel`` for the model that handles this.
+    """
+
+    def __init__(
+        self,
+        stalk_dim: int,
+        in_channels: int,
+        hidden_dim: int,
+        alpha: float = 1.0,
+        add_self_loops: bool = False,
+        add_eps: bool = True,
+        dropout: float = 0.0,
+        add_lp: bool = False,
+        add_hp: bool = False,
+        sparse_learner: bool = False,
+    ):
+        super().__init__(
+            stalk_dim,
+            in_channels,
+            hidden_dim,
+            alpha,
+            context_dim=1,
+            add_self_loops=add_self_loops,
+            add_eps=add_eps,
+            dropout=dropout,
+            add_lp=add_lp,
+            add_hp=add_hp,
+            sparse_learner=sparse_learner,
+        )
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        nn.init.eye_(self.W1)
+        nn.init.orthogonal_(self.W2)
+
+    def _apply_norm(self, self_map, cross_map, edge_index, num_nodes):
+        """Apply orthogonal degree normalisation (scalar degree, ignores self_map)."""
+        return apply_orthogonal_norm(cross_map, edge_index, num_nodes)
+
+    def get_map_products(
+        self, x_feat: torch.Tensor, edge_index: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return the cross-map from precomputed connection-Laplacian transport maps.
+
+        Args:
+            x_feat: Per-edge orthogonal transport maps ``[E, d, d]`` as returned by
+                ``_orthogonal_alignment``.  For edge ``(src, dst)`` the map is
+                ``O_src^T O_dst``; transposing gives ``F_dst^T F_src = O_dst^T O_src``.
+            edge_index: Graph connectivity ``[2, E]`` (unused; kept for API parity).
+
+        Returns:
+            ``(identity, cross_map)`` — self_map is the identity ``[E, d, d]``
+            because ``F^T F = I`` for orthogonal transport maps.
+        """
+        cross_map = x_feat.transpose(-2, -1)
+        E, d, _ = cross_map.shape
+        identity = torch.eye(d, device=cross_map.device, dtype=cross_map.dtype).expand(
+            E, d, d
+        )
+        return self._append_fixed_block(identity, cross_map)
+
+    def message(
+        self,
+        z_dst: torch.Tensor,
+        z_src: torch.Tensor,
+        self_map: torch.Tensor,
+        cross_map: torch.Tensor,
+    ) -> torch.Tensor:
+        """Builds connection-Laplacian messages using precomputed transport maps.
+
+        Args:
+            z_dst: Destination-node transformed stalks [E, d, f].
+            z_src: Source-node transformed stalks [E, d, f].
+            self_map: Scalar degree inverse D^{-1}_dst broadcast to [E, 1, 1].
+            cross_map: Normalised D^{-1/2}_dst O_dst^T O_src
+                D^{-1/2}_src per edge [E, d, d].
+
+        Returns:
+            torch.Tensor: Per-edge Laplacian messages [E, d, f].
+        """
+        # self_map = D^{-1}_dst [E,1,1]; cross_map = D^{-1/2}_dst O^T O D^{-1/2}_src.
+        return self_map * z_dst - torch.matmul(cross_map, z_src)
+
+
 __all__ = [
     "BaseNSDConv",
+    "ConnectionLaplacianNSDConv",
     "DiagonalNSDConv",
     "GeneralNSDConv",
     "OrthogonalNSDConv",

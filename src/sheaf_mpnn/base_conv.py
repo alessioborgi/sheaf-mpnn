@@ -56,6 +56,9 @@ class BaseSheafConv(MessagePassing):
             context_dim if context_dim is not None else (self.stalk_dim * in_channels)
         )
         self.add_self_loops = add_self_loops
+        # Disable the intrinsic skip for wrappers that consume bare messages,
+        # such as Deep Neural Sheaf Diffusion. Standalone layers keep the skip.
+        self.residual = True
 
         self.W1 = nn.Parameter(torch.empty(self.stalk_dim, self.stalk_dim))
         self.W2 = nn.Parameter(torch.empty(in_channels, in_channels))
@@ -136,6 +139,17 @@ class BaseSheafConv(MessagePassing):
         concatenated pair, shrinking it from 2*final_d*f to 2*f.
         """
         return 2 * self.in_channels if self.sparse_learner else 2 * self.context_dim
+
+    def _build_map_generator(self, out_dim: int, bounded: bool = True) -> nn.Sequential:
+        """Reference-style sheaf learner: single bias-free linear, optionally
+        tanh-bounded so every map entry lies in (-1, 1).
+        """
+        layers: list[nn.Module] = [
+            nn.Linear(self._generator_in_dim(), out_dim, bias=False)
+        ]
+        if bounded:
+            layers.append(nn.Tanh())
+        return nn.Sequential(*layers)
 
     def _bidirectional_pair(
         self,

@@ -26,6 +26,8 @@ _VariantStr = _Lit[
     "low_rank",
     "general_attention",
     "orthogonal_attention",
+    "sheafan",
+    "res_sheafan",
 ]
 
 # ---------------------------------------------------------------------------
@@ -100,6 +102,17 @@ def _make_module(metric: str = "acc", **cfg_kwargs) -> SheafLightningModule:
     return mod
 
 
+def _make_nsp_module(metric: str = "acc", **cfg_kwargs) -> SheafLightningModule:
+    cfg = _make_config(**cfg_kwargs)
+    from exp.config import ModelType
+
+    cfg.model.type = ModelType.NSP
+    info = _make_info(metric=metric)
+    mod = SheafLightningModule(cfg, info)
+    mod.log = MagicMock()  # ty: ignore[invalid-assignment]  test mocking
+    return mod
+
+
 # ---------------------------------------------------------------------------
 # Model construction
 # ---------------------------------------------------------------------------
@@ -127,6 +140,26 @@ class TestModuleConstruction:
         mod = _make_module(stalk_dim=2, hidden_dim=4)
         # decoder: d*hidden_dim -> num_classes
         assert mod.model.decoder.out_features == 3  # num_classes
+
+
+class TestNSPModuleConstruction:
+    @pytest.mark.parametrize("variant", ["diagonal", "general", "orthogonal"])
+    def test_all_variants_build_nsp_model(self, variant):
+        from sheaf_mpnn.nsp import NSPModel
+
+        mod = _make_nsp_module(variant=variant)
+        assert isinstance(mod.model, NSPModel)
+
+    def test_nsp_encoder_has_correct_in_out(self):
+        mod = _make_nsp_module(stalk_dim=2, hidden_dim=4)
+        assert mod.model.encoder.in_features == 8
+        assert mod.model.encoder.out_features == 8
+
+    def test_nsp_decoder_has_correct_out(
+        self,
+    ):
+        mod = _make_nsp_module(stalk_dim=2, hidden_dim=4)
+        assert mod.model.decoder.out_features == 3
 
     def test_unknown_model_type_raises_value_error(self):
         cfg = _make_config()
@@ -202,6 +235,37 @@ class TestTrainingStep:
             out1 = mod.model(batch.x, batch.edge_index)
             out2 = mod.model(batch.x, batch.edge_index)
         torch.testing.assert_close(out1, out2)
+
+
+class TestNSPTrainingStep:
+    @pytest.fixture
+    def module(self):
+        return _make_nsp_module()
+
+    @pytest.fixture
+    def batch(self):
+        return _make_batch()
+
+    def test_nsp_returns_scalar_tensor(self, module, batch):
+        loss = module.training_step(batch, 0)
+        assert isinstance(loss, torch.Tensor)
+        assert loss.ndim == 0
+
+    def test_nsp_loss_is_finite(self, module, batch):
+        loss = module.training_step(batch, 0)
+        assert torch.isfinite(loss)
+
+    def test_nsp_backward_produces_gradients(self, module, batch):
+        loss = module.training_step(batch, 0)
+        loss.backward()
+        assert module.model.encoder.weight.grad is not None
+        assert module.model.encoder.weight.grad.abs().sum() > 0
+
+    @pytest.mark.parametrize("variant", ["diagonal", "general", "orthogonal"])
+    def test_nsp_all_variants_produce_finite_loss(self, variant, batch):
+        mod = _make_nsp_module(variant=variant)
+        loss = mod.training_step(batch, 0)
+        assert torch.isfinite(loss)
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +472,80 @@ class TestComputeMetricROCAUC:
         result = mod._compute_metric(logits, labels, mask)
         assert isinstance(result, float)
         assert 0.0 <= result <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# _compute_metric / _log_extra_metrics -- multilabel (ogbn-proteins protocol)
+# ---------------------------------------------------------------------------
+
+
+def _make_multilabel_module(num_tasks: int = 4) -> SheafLightningModule:
+    cfg = _make_config()
+    info = DatasetInfo(
+        name="proteins_like",
+        num_features=8,
+        num_classes=num_tasks,
+        num_splits=1,
+        metric="roc_auc",
+        split_type="pyg_mask",
+        task="multilabel",
+    )
+    mod = SheafLightningModule(cfg, info)
+    mod.log = MagicMock()  # ty: ignore[invalid-assignment]  test mocking
+    return mod
+
+
+class TestComputeMetricMultilabel:
+    def test_perfect_predictions_give_unit_auc(self):
+        mod = _make_multilabel_module()
+        labels = torch.randint(0, 2, (20, 4)).float()
+        logits = labels * 10.0 - 5.0  # perfectly separable per task
+        mask = torch.ones(20, dtype=torch.bool)
+        assert mod._compute_metric(logits, labels, mask) == pytest.approx(1.0)
+
+    def test_returns_float_in_unit_interval(self):
+        mod = _make_multilabel_module()
+        torch.manual_seed(3)
+        logits = torch.randn(30, 4)
+        labels = torch.randint(0, 2, (30, 4)).float()
+        mask = torch.ones(30, dtype=torch.bool)
+        result = mod._compute_metric(logits, labels, mask)
+        assert isinstance(result, float)
+        assert 0.0 <= result <= 1.0
+
+    def test_single_class_tasks_are_skipped(self):
+        # Task 0 is constant in the mask: AUC averages over the other tasks.
+        mod = _make_multilabel_module()
+        torch.manual_seed(4)
+        labels = torch.randint(0, 2, (20, 4)).float()
+        labels[:, 0] = 1.0
+        logits = labels * 10.0 - 5.0
+        mask = torch.ones(20, dtype=torch.bool)
+        assert mod._compute_metric(logits, labels, mask) == pytest.approx(1.0)
+
+    def test_all_constant_tasks_return_half(self):
+        mod = _make_multilabel_module()
+        labels = torch.ones(10, 4)
+        logits = torch.randn(10, 4)
+        mask = torch.ones(10, dtype=torch.bool)
+        assert mod._compute_metric(logits, labels, mask) == pytest.approx(0.5)
+
+    def test_multilabel_training_step_uses_bce(self):
+        mod = _make_multilabel_module()
+        torch.manual_seed(5)
+        batch = _make_batch(num_classes=4)
+        batch.y = torch.randint(0, 2, (20, 4)).float()
+        loss = mod.training_step(batch, 0)
+        assert torch.isfinite(loss)
+
+    def test_multilabel_eval_step_logs_roc_auc(self):
+        mod = _make_multilabel_module()
+        torch.manual_seed(6)
+        batch = _make_batch(num_classes=4)
+        batch.y = torch.randint(0, 2, (20, 4)).float()
+        mod.validation_step(batch, 0)
+        logged = {c.args[0] for c in cast(MagicMock, mod.log).call_args_list}
+        assert "val_roc_auc" in logged and "val_loss" in logged
 
 
 # ---------------------------------------------------------------------------

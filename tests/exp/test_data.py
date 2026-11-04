@@ -167,25 +167,40 @@ class TestLoadDataset:
         with pytest.raises(ValueError, match="Supported"):
             load_dataset("garbage_name")
 
-    # -- Planetoid loader (cora / citeseer) --
+    # -- Directed citation override (cora / citeseer / pubmed) --
+    # These names are canonically loaded from the DSNN *directed* citation
+    # source, not PyG's Planetoid; the undirected variant is the default and the
+    # directed graph is selected with the ``--directed`` flag.
 
-    def test_planetoid_cora_returns_correct_info(self):
-        data = _synthetic_data(num_nodes=20, num_features=5, num_classes=3)
-        with patch("exp.data.Planetoid", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("cora", root="/tmp/fake")
-        assert info.name == "cora"
-        assert info.num_features == 5
-        assert info.num_classes == 3
-        assert info.num_splits == 10
-        assert info.metric == "acc"
-        assert info.split_type == "npz_file"
+    def test_cora_routes_to_directed_citation(self):
+        data = _synthetic_multicol_data(num_nodes=20, num_features=5, num_classes=3)
+        info = DatasetInfo("cora", 5, 3, 10, "acc", "pyg_mask")
+        with (
+            patch("exp.datasets.directed.is_directed_citation", return_value=True),
+            patch(
+                "exp.datasets.directed.load_directed_citation",
+                return_value=(data, info),
+            ),
+        ):
+            _result_data, out = load_dataset("cora", root="/tmp/fake")
+        assert out.name == "cora"
+        assert out.num_features == 5
+        assert out.num_classes == 3
+        assert out.split_type == "pyg_mask"
 
-    def test_planetoid_citeseer_returns_correct_info(self):
-        data = _synthetic_data(num_nodes=15, num_features=6, num_classes=4)
-        with patch("exp.data.Planetoid", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("citeseer", root="/tmp/fake")
-        assert info.name == "citeseer"
-        assert info.split_type == "npz_file"
+    def test_citeseer_routes_to_directed_citation(self):
+        data = _synthetic_multicol_data(num_nodes=15, num_features=6, num_classes=4)
+        info = DatasetInfo("citeseer", 6, 4, 10, "acc", "pyg_mask")
+        with (
+            patch("exp.datasets.directed.is_directed_citation", return_value=True),
+            patch(
+                "exp.datasets.directed.load_directed_citation",
+                return_value=(data, info),
+            ),
+        ):
+            _result_data, out = load_dataset("citeseer", root="/tmp/fake")
+        assert out.name == "citeseer"
+        assert out.split_type == "pyg_mask"
 
     # -- WebKB loader (cornell / texas) --
 
@@ -220,28 +235,32 @@ class TestLoadDataset:
             result_data, info = load_dataset("fil", root="/tmp/fake")
         assert info.name == "film"
 
-    # -- HeterophilousGraphDataset loader --
+    # -- Directed Platonov override (heterophilous .npz) --
+    # The Platonov heterophilous names are canonically loaded from the DSNN
+    # *directed* .npz source, not PyG's HeterophilousGraphDataset.
 
-    def test_heterophilous_minesweeper_roc_auc(self):
+    def test_minesweeper_routes_to_directed_npz(self):
         data = _synthetic_multicol_data(num_nodes=30, num_features=7, num_classes=2)
-        with patch("exp.data.HeterophilousGraphDataset", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("minesweeper", root="/tmp/fake")
-        assert info.metric == "roc_auc"
-        assert info.split_type == "pyg_mask"
-        assert info.num_splits == 10
+        info = DatasetInfo("minesweeper", 7, 2, 10, "roc_auc", "pyg_mask")
+        with (
+            patch("exp.datasets.directed.is_directed_npz", return_value=True),
+            patch("exp.datasets.directed.load_directed_npz", return_value=(data, info)),
+        ):
+            _result_data, out = load_dataset("minesweeper", root="/tmp/fake")
+        assert out.metric == "roc_auc"
+        assert out.split_type == "pyg_mask"
+        assert out.num_splits == 10
 
-    def test_heterophilous_amazon_ratings_acc(self):
+    def test_amazon_ratings_routes_to_directed_npz(self):
         data = _synthetic_multicol_data(num_nodes=30, num_features=9, num_classes=5)
-        with patch("exp.data.HeterophilousGraphDataset", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("amazon_ratings", root="/tmp/fake")
-        assert info.metric == "acc"
-        assert info.split_type == "pyg_mask"
-
-    def test_heterophilous_tolokers_roc_auc(self):
-        data = _synthetic_multicol_data(num_nodes=20, num_features=5, num_classes=2)
-        with patch("exp.data.HeterophilousGraphDataset", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("tolokers", root="/tmp/fake")
-        assert info.metric == "roc_auc"
+        info = DatasetInfo("amazon_ratings", 9, 5, 10, "acc", "pyg_mask")
+        with (
+            patch("exp.datasets.directed.is_directed_npz", return_value=True),
+            patch("exp.datasets.directed.load_directed_npz", return_value=(data, info)),
+        ):
+            _result_data, out = load_dataset("amazon_ratings", root="/tmp/fake")
+        assert out.metric == "acc"
+        assert out.split_type == "pyg_mask"
 
     # -- WikipediaNetwork loader (chameleon / squirrel) --
 
@@ -252,19 +271,218 @@ class TestLoadDataset:
         assert info.name == "chameleon"
         assert info.split_type == "npz_file"
 
+    # -- OGB loader (ogbn_arxiv) --
+
+    @staticmethod
+    def _mock_ogb_ds(num_nodes: int = 30) -> tuple[MagicMock, Data]:
+        # OGB convention: y is [N, 1], no masks; get_idx_split() returns the
+        # official single split as index tensors.
+        data = Data(
+            x=torch.randn(num_nodes, 6),
+            edge_index=torch.randint(0, num_nodes, (2, num_nodes * 2)),
+            y=torch.randint(0, 4, (num_nodes, 1)),
+        )
+        ds = _mock_ds(data)
+        idx = torch.randperm(num_nodes)
+        ds.get_idx_split = MagicMock(
+            return_value={
+                "train": idx[: num_nodes // 2],
+                "valid": idx[num_nodes // 2 : num_nodes * 3 // 4],
+                "test": idx[num_nodes * 3 // 4 :],
+            }
+        )
+        return ds, data
+
+    def test_ogbn_arxiv_returns_correct_info(self):
+        ds, _ = self._mock_ogb_ds()
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, info = load_dataset("ogbn-arxiv", root="/tmp/fake")
+        assert info.name == "ogbn_arxiv"
+        assert info.metric == "acc"
+        assert info.split_type == "pyg_mask"
+        assert info.num_splits == 1
+        assert info.num_classes == 4
+
+    def test_ogbn_arxiv_stamps_official_split_as_masks(self):
+        ds, _ = self._mock_ogb_ds(num_nodes=40)
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, info = load_dataset("ogbn_arxiv", root="/tmp/fake")
+        for mask_name, size in (
+            ("train_mask", 20),
+            ("val_mask", 10),
+            ("test_mask", 10),
+        ):
+            mask = result_data[mask_name]
+            assert mask.dtype == torch.bool and mask.dim() == 1
+            assert int(mask.sum()) == size
+        # The three masks partition the official split without overlap.
+        overlap = result_data.train_mask & (
+            result_data.val_mask | result_data.test_mask
+        )
+        assert not bool(overlap.any())
+
+    def test_ogbn_arxiv_flattens_labels(self):
+        ds, _ = self._mock_ogb_ds()
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, _ = load_dataset("ogbn_arxiv", root="/tmp/fake")
+        assert isinstance(result_data.y, torch.Tensor)
+        assert result_data.y.dim() == 1
+        assert result_data.y.dtype == torch.long
+
+    def test_ogbn_arxiv_symmetrized_by_default(self):
+        from torch_geometric.utils import is_undirected  # noqa: PLC0415
+
+        ds, _ = self._mock_ogb_ds()
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, _ = load_dataset("ogbn_arxiv", root="/tmp/fake")
+        assert result_data.edge_index is not None
+        assert is_undirected(result_data.edge_index)
+
+    def test_ogbn_products_uses_same_ogb_path(self):
+        ds, _ = self._mock_ogb_ds()
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, info = load_dataset("ogbn-products", root="/tmp/fake")
+        assert info.name == "ogbn_products"
+        assert info.metric == "acc"
+        assert info.task == "multiclass"
+        assert info.num_splits == 1
+        assert isinstance(result_data.y, torch.Tensor)
+        assert result_data.y.dim() == 1
+
+    # -- OGB loader (ogbn_proteins: featureless, multilabel) --
+
+    @staticmethod
+    def _mock_proteins_ds(
+        num_nodes: int = 30, num_tasks: int = 7, edge_dim: int = 8
+    ) -> MagicMock:
+        # ogbn-proteins convention: no x, [E, 8] edge features, [N, T] binary y.
+        num_edges = num_nodes * 4
+        data = Data(
+            edge_index=torch.randint(0, num_nodes, (2, num_edges)),
+            edge_attr=torch.rand(num_edges, edge_dim),
+            y=torch.randint(0, 2, (num_nodes, num_tasks)),
+            num_nodes=num_nodes,
+        )
+        ds = _mock_ds(data)
+        idx = torch.randperm(num_nodes)
+        ds.get_idx_split = MagicMock(
+            return_value={
+                "train": idx[: num_nodes // 2],
+                "valid": idx[num_nodes // 2 : num_nodes * 3 // 4],
+                "test": idx[num_nodes * 3 // 4 :],
+            }
+        )
+        return ds
+
+    def test_ogbn_proteins_returns_multilabel_info(self):
+        ds = self._mock_proteins_ds()
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            _result_data, info = load_dataset("ogbn-proteins", root="/tmp/fake")
+        assert info.name == "ogbn_proteins"
+        assert info.metric == "roc_auc"
+        assert info.task == "multilabel"
+        assert info.num_classes == 7
+        assert info.num_features == 8
+        assert info.num_splits == 1
+
+    def test_ogbn_proteins_builds_node_features_from_edge_means(self):
+        ds = self._mock_proteins_ds(num_nodes=25)
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, _ = load_dataset("ogbn_proteins", root="/tmp/fake")
+        assert result_data.x is not None
+        assert result_data.x.shape == (25, 8)
+        # Edge features are in [0, 1), so their means must be too.
+        assert float(result_data.x.min()) >= 0.0
+        assert float(result_data.x.max()) < 1.0
+        assert result_data.edge_attr is None
+
+    def test_ogbn_proteins_keeps_2d_float_labels(self):
+        ds = self._mock_proteins_ds()
+        with patch("ogb.nodeproppred.PygNodePropPredDataset", return_value=ds):
+            result_data, _ = load_dataset("ogbn_proteins", root="/tmp/fake")
+        assert isinstance(result_data.y, torch.Tensor)
+        assert result_data.y.shape == (30, 7)
+        assert result_data.y.dtype == torch.float32
+
+    # -- LINKX loader (pokec) --
+
+    @staticmethod
+    def _fake_pokec_files(root, num_nodes: int = 20, num_splits: int = 5):
+        # Mirror the LINKX release layout: pokec.mat plus pokec-splits.npy
+        # holding per-fold train/valid/test index dicts over labeled nodes.
+        import scipy.io  # noqa: PLC0415
+
+        raw = os.path.join(root, "pokec", "raw")
+        os.makedirs(raw, exist_ok=True)
+        rng = np.random.default_rng(0)
+        label = rng.integers(0, 2, num_nodes)
+        label[:2] = -1  # unlabeled nodes, excluded from every split
+        scipy.io.savemat(
+            os.path.join(raw, "pokec.mat"),
+            {
+                "edge_index": rng.integers(0, num_nodes, (2, num_nodes * 3)),
+                "node_feat": rng.random((num_nodes, 4)),
+                "label": label,
+            },
+        )
+        labeled = np.nonzero(label >= 0)[0]
+        splits = []
+        for i in range(num_splits):
+            perm = np.random.default_rng(i).permutation(labeled)
+            n = len(perm)
+            splits.append(
+                {
+                    "train": perm[: n // 2],
+                    "valid": perm[n // 2 : 3 * n // 4],
+                    "test": perm[3 * n // 4 :],
+                }
+            )
+        np.save(
+            os.path.join(raw, "pokec-splits.npy"),
+            np.asarray(splits, dtype=object),
+            allow_pickle=True,
+        )
+
+    def test_pokec_loads_official_splits_as_mask_columns(self, tmp_path):
+        root = str(tmp_path)
+        self._fake_pokec_files(root)
+        result_data, info = load_dataset("pokec", root=root)
+        assert info.name == "pokec"
+        assert info.metric == "acc"
+        assert info.task == "multiclass"
+        assert info.num_classes == 2
+        assert info.num_splits == 5
+        for mask_name in ("train_mask", "val_mask", "test_mask"):
+            mask = result_data[mask_name]
+            assert mask.shape == (20, 5) and mask.dtype == torch.bool
+        # Unlabeled nodes (-1) never appear in any split column.
+        assert isinstance(result_data.y, torch.Tensor)
+        unlabeled = result_data.y < 0
+        assert not bool(
+            (result_data.train_mask | result_data.val_mask | result_data.test_mask)[
+                unlabeled
+            ].any()
+        )
+
+    def test_pokec_caches_processed_data(self, tmp_path):
+        root = str(tmp_path)
+        self._fake_pokec_files(root)
+        load_dataset("pokec", root=root)
+        assert os.path.isfile(os.path.join(root, "pokec", "processed", "pokec.pt"))
+
     # -- Returned Data object --
 
     def test_returned_data_has_correct_num_features(self):
         data = _synthetic_data(num_nodes=20, num_features=8, num_classes=3)
-        with patch("exp.data.Planetoid", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("cora", root="/tmp/fake")
+        with patch("exp.data.WebKB", return_value=_mock_ds(data)):
+            result_data, info = load_dataset("texas", root="/tmp/fake")
         assert isinstance(result_data, Data) and result_data.x is not None
         assert result_data.x.shape[1] == 8
 
     def test_num_classes_derived_from_max_label(self):
         data = _synthetic_data(num_nodes=20, num_features=5, num_classes=4)
-        with patch("exp.data.Planetoid", return_value=_mock_ds(data)):
-            result_data, info = load_dataset("cora", root="/tmp/fake")
+        with patch("exp.data.WebKB", return_value=_mock_ds(data)):
+            result_data, info = load_dataset("texas", root="/tmp/fake")
         assert isinstance(data.y, torch.Tensor)
         assert info.num_classes == int(data.y.max().item()) + 1
 
@@ -468,17 +686,15 @@ class TestFilteredWikipediaDataset:
         assert data.train_mask.shape == (10, 10)
 
     def test_load_dataset_filtered_wiki(self, tmp_path, mock_npz):
+        # chameleon_filtered is canonically served by the DSNN directed source;
+        # a file dropped under <root>/directed takes precedence over downloads.
         name = "chameleon_filtered"
         root = str(tmp_path)
-        # PyG's InMemoryDataset adds the dataset
-        # name to the root if it's not already there
-        # but FilteredWikipediaDataset uses self.raw_dir which is root/raw
-        raw_dir = os.path.join(root, name, "raw")
-        os.makedirs(raw_dir)
-        np.savez(os.path.join(raw_dir, f"{name}.npz"), **mock_npz)
+        directed_dir = os.path.join(root, "directed")
+        os.makedirs(directed_dir)
+        np.savez(os.path.join(directed_dir, f"{name}.npz"), **mock_npz)
 
-        with patch("exp.data.urllib.request.urlretrieve"):
-            data, info = load_dataset(name, root=root)
+        data, info = load_dataset(name, root=root)
 
         assert info.name == name
         assert info.split_type == "pyg_mask"

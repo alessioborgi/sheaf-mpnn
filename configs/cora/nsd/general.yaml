@@ -64,4 +64,4 @@ config:
   seed: 42
   storage: sqlite:///nsd_cora_general.db   # uncomment for distributed / resumable sweeps
   wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
-  wandb_entity: sheaf-mpnn
+  wandb_entity: adavit

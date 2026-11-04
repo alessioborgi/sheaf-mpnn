@@ -1,0 +1,67 @@
+# CSNN sweep on chameleon - conformal restriction maps.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/chameleon/csnn/conformal.yaml --preset chameleon_csnn
+#
+# The chameleon_csnn preset is a sweep anchor: the reference paper does not tune
+# this dataset, so the preset mirrors the dataset's shared _HP row rather than
+# transcribing reference hyperparameters.
+
+model: csnn
+
+# Ranges bracket the reference hyperparameters (arXiv:2507.00647 run scripts):
+# d in {3, 4}, hidden in {32, 64}, lr in {0.02, 0.002}, wd in {1e-7, 1e-8}.
+# gnn_type stays SAGE (preset default); GPS/NNConv are excluded -- GPS needs
+# linear_emb and NNConv needs edge_attr, which the pipeline does not provide.
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 3, 4]
+  hidden_dim:
+    type: categorical
+    choices: [16, 32, 64]
+  num_layers:
+    type: int
+    low: 1
+    high: 8
+  gnn_layers:
+    type: int
+    low: 0
+    high: 5
+  gnn_hidden:
+    type: categorical
+    choices: [16, 32, 64]
+  gnn_default:
+    type: categorical
+    choices: [0, 1, 2]
+  left_weights:
+    type: categorical
+    choices: [false, true]
+  right_weights:
+    type: categorical
+    choices: [false, true]
+  layer_norm:
+    type: categorical
+    choices: [false, true]
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5]
+  lr:
+    type: categorical
+    choices: [0.02, 0.002, 0.0002]
+  weight_decay:
+    type: categorical
+    choices: [0.0003, 1.0e-7, 1.0e-8]
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Platonov protocol: every trial trains all 10 splits
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: csnn-chameleon-conformal
+  seed: 42
+  storage: sqlite:///csnn_chameleon_conformal.db   # uncomment for distributed / resumable sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

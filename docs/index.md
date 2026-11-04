@@ -1,74 +1,79 @@
-# sheaf_mpnn
+# Sheaf-MPNN
+
+**Sheaf-MPNN: A Library for Sheaf Neural Networks as Message Passing** ([arXiv:2611.04670](https://arxiv.org/abs/2611.04670))
+
+`sheaf_mpnn` is a PyTorch / PyTorch Geometric library of **sheaf neural
+networks** written in the message-passing paradigm, together with a benchmark
+suite: a unified `sheaf` command line, more than 1,300 ready-made presets and
+900+ shipped hyperparameter sweeps covering 20+ node-, graph- and link-level
+datasets.
+
+## Why this library
+
+Sheaf neural networks attach a vector space (a *stalk*) to every node and a
+learned linear *restriction map* to every node-edge incidence, and diffuse
+features with the resulting sheaf Laplacian. The original implementations
+build dense or block-sparse Laplacians per model and per paper. This library
+instead expresses every model as a `torch_geometric.nn.MessagePassing` layer
+built on one shared base class, so that
+
+- all families share the same `encoder -> L sheaf convs -> decoder` structure
+  and the same restriction-map parameterisations (diagonal, general,
+  orthogonal, low-rank, attention-initialised);
+- layers take an `edge_index` like any other PyG layer and can be mixed with
+  the rest of the PyG ecosystem, including heterogeneous graphs;
+- every model is benchmarked under one training protocol, with the same splits,
+  early-stopping rule and hyperparameter search.
+
+## Model families
+
+Neural Sheaf Diffusion and its polynomial, connection-Laplacian, deep and
+adjacency-normalised variants; Neural Sheaf Propagation; Sheaf Attention
+Networks; Bayesian Sheaf Neural Networks; Nonlinear Sheaf Diffusion; Bundle
+Neural Networks; directed sheaf diffusion; Cooperative Sheaf Neural Networks;
+identity, joint-diffusion and rotation-invariant sheaves; and heterogeneous
+mirrors of all of them. See [Models](user-guide/models.md).
+
+## Where to start
+
+- [Installation](installation.md): `pip` from GitHub or a locked `uv` environment.
+- [Quick start](quickstart.md): a model in five lines of Python, and a
+  cross-validated benchmark run in one command.
+- [Tutorials](tutorials.md): ten executed notebooks, from GNN basics to
+  directed hypergraph sheaves.
+- [API reference](api.md): every public class and function.
+
+## License and citation
+
+Released under the [MIT License](https://github.com/alessioborgi/sheaf-mpnn/blob/main/LICENSE).
+If you use the library in your research, please [cite it](citation.md).
 
 ```{toctree}
+:hidden:
 :caption: Getting started
-:maxdepth: 2
 
-getting_started/installation
-getting_started/quickstart
+installation
+quickstart
+tutorials
 ```
 
 ```{toctree}
-:caption: Guides
-:maxdepth: 2
+:hidden:
+:caption: User guide
 
-guides/experiments
-guides/datasets
+user-guide/cli
+user-guide/models
+user-guide/datasets
+user-guide/sweeps
+user-guide/benchmark
 ```
 
 ```{toctree}
-:caption: API reference
-:maxdepth: 2
+:hidden:
+:caption: Reference
 
-api/sheaf_mpnn
-api/exp
-```
-
-```{toctree}
-:caption: Project
-:maxdepth: 1
-
+api
 changelog
+citation
+contributing
 ```
-
-## Neural Sheaf Diffusion
-
-A cellular sheaf assigns a stalk $\mathbb{R}^d$ to each node and a restriction map $\rho_{v \leftarrow e} : \mathbb{R}^d \to \mathbb{R}^d$ to each edge endpoint. The **sheaf Laplacian** is
-
-$$L_F = B^\top \left(\bigoplus_{e \in \mathcal{E}} \begin{bmatrix} \rho_{u \leftarrow e}^\top \rho_{u \leftarrow e} & -\rho_{u \leftarrow e}^\top \rho_{v \leftarrow e} \\ -\rho_{v \leftarrow e}^\top \rho_{u \leftarrow e} & \rho_{v \leftarrow e}^\top \rho_{v \leftarrow e} \end{bmatrix} \right) B$$
-
-where $B$ is the node-edge incidence matrix. The standard graph Laplacian is the special case where every restriction map is the identity. By learning $\rho_{v \leftarrow e}$ per edge, NSD can encode heterophilic structure that scalar-Laplacian methods cannot represent.
-
-The NSD diffusion update is $\mathbf{H}^{(t+1)} = \sigma\!\left(\left(I - \sigma_\Delta(X;\theta)\, \tilde{L}_F\right)\mathbf{H}^{(t)} W\right)$, where $\tilde{L}_F$ is the normalised sheaf Laplacian and $\sigma_\Delta$ predicts the per-edge restriction maps from node features.
-
-`sheaf_mpnn` implements this model family (Bodnar et al., 2022) as PyTorch Geometric message-passing layers, paired with an experiment runner (`exp`) using PyTorch Lightning, `tyro`, and Optuna for 10-fold CV and hyperparameter sweeps on standard node-classification benchmarks.
-
-::::{grid} 3
-:gutter: 2
-
-:::{grid-item-card} Diagonal
-{py:class}`sheaf_mpnn.nsd.DiagonalNSDConv`
-
-Restriction maps are diagonal $d \times d$ matrices, $d$ parameters per edge endpoint. Lowest capacity; fastest training.
-:::
-
-:::{grid-item-card} General
-{py:class}`sheaf_mpnn.nsd.GeneralNSDConv`
-
-Unrestricted $d \times d$ maps, $d^2$ parameters per edge endpoint. Maximum expressivity; can represent any linear relationship between stalks.
-:::
-
-:::{grid-item-card} Orthogonal
-{py:class}`sheaf_mpnn.nsd.OrthogonalNSDConv`
-
-Orthogonal maps parameterised via Cayley transform of $\tfrac{d(d-1)}{2}$ scalars, $O(d)$ parameters, norm-preserving diffusion.
-:::
-::::
-
-See the [API reference](api/sheaf_mpnn) for full details.
-
-## Indices
-
-* {ref}`genindex`
-* {ref}`modindex`
-* {ref}`search`

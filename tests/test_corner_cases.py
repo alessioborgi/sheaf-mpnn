@@ -13,6 +13,11 @@ from sheaf_mpnn.nsd.nsd_layers import (
     GeneralNSDConv,
     OrthogonalNSDConv,
 )
+from sheaf_mpnn.nsp.nsp_layers import (
+    DiagonalNSPConv,
+    GeneralNSPConv,
+    OrthogonalNSPConv,
+)
 from sheaf_mpnn.utils import setup_torch
 
 
@@ -40,6 +45,19 @@ def test_nsd_layers_no_self_loops():
     edge_index = torch.tensor([[0, 1, 2], [1, 2, 0]], dtype=torch.long)
 
     for cls in [DiagonalNSDConv, GeneralNSDConv, OrthogonalNSDConv]:
+        conv = cls(d, f, hidden_dim=8, add_self_loops=False)
+        out = conv(x_feat, x_stalk, edge_index)
+        assert out.shape == x_stalk.shape
+
+
+def test_nsp_layers_no_self_loops():
+    """Verify NSP layers work correctly without self-loops."""
+    num_nodes, d, f = 4, 2, 4
+    x_feat = torch.randn(num_nodes, d * f)
+    x_stalk = torch.randn(num_nodes, 2 * d, f)
+    edge_index = torch.tensor([[0, 1, 2], [1, 2, 0]], dtype=torch.long)
+
+    for cls in [DiagonalNSPConv, GeneralNSPConv, OrthogonalNSPConv]:
         conv = cls(d, f, hidden_dim=8, add_self_loops=False)
         out = conv(x_feat, x_stalk, edge_index)
         assert out.shape == x_stalk.shape
@@ -78,12 +96,20 @@ def test_base_conv_reset_parameters_no_map_generator():
 def test_diagonal_nsd_message_shapes():
     """Explicitly check message() shapes for DiagonalNSDConv."""
     conv = DiagonalNSDConv(stalk_dim=2, in_channels=4, hidden_dim=8)
-    x_i = torch.randn(5, 2, 4)
-    x_j = torch.randn(5, 2, 4)
-    t_diag = torch.randn(5, 2)
-    t = torch.randn(5, 2)
-    msg = conv.message(x_i, x_j, t_diag, t)
+    z_dst = torch.randn(5, 2, 4)
+    z_src = torch.randn(5, 2, 4)
+    # Diagonal maps: self_map = w_dst^2 [E, d], cross_map = w_dst * w_src [E, d].
+    self_map = torch.randn(5, 2)
+    cross_map = torch.randn(5, 2)
+
+    msg = conv.message(z_dst, z_src, self_map, cross_map)
     assert msg.shape == (5, 2, 4)
+
+    # When cross_map is zero, the message should reduce to the self term.
+    zero_cross_map = torch.zeros_like(cross_map)
+    self_only_msg = conv.message(z_dst, z_src, self_map, zero_cross_map)
+    expected_self_only_msg = self_map.unsqueeze(-1) * z_dst
+    assert torch.allclose(self_only_msg, expected_self_only_msg)
 
 
 def test_nsd_attention_variants():
@@ -99,11 +125,33 @@ def test_nsd_attention_variants():
         assert out.shape == x_stalk.shape
 
 
+def test_nsp_attention_variants():
+    """Cover the use_attention=True branches in NSP layers."""
+    num_nodes, d, f = 4, 2, 2
+    x_feat = torch.randn(num_nodes, d * f)
+    x_stalk = torch.randn(num_nodes, 2 * d, f)
+    edge_index = torch.tensor([[0, 1], [1, 0]], dtype=torch.long)
+
+    for cls in [GeneralNSPConv, OrthogonalNSPConv]:
+        conv = cls(d, f, hidden_dim=8, use_attention=True)
+        out = conv(x_feat, x_stalk, edge_index)
+        assert out.shape == x_stalk.shape
+
+
 def test_nsd_variant_enum_properties():
     """Cover all branches of NSDVariant properties."""
     from sheaf_mpnn.nsd.nsd_model import NSDVariant
 
     for v in NSDVariant:
+        assert v.layer_class is not None
+        assert isinstance(v.layer_kwargs, dict)
+
+
+def test_nsp_variant_enum_properties():
+    """Cover all branches of NSPVariant properties."""
+    from sheaf_mpnn.nsp.nsp_model import NSPVariant
+
+    for v in NSPVariant:
         assert v.layer_class is not None
         assert isinstance(v.layer_kwargs, dict)
 
@@ -174,7 +222,15 @@ def test_download_split_failure_removes_file(tmp_path):
     from exp.splits import _download_split
 
     path = os.path.join(tmp_path, "fake_split.npz")
-    with patch("exp.splits.urllib.request.urlretrieve") as mock_retrieve:
+    with (
+        # The release mirror is tried first; force it down so the upstream
+        # failure branch under test is reached.
+        patch(
+            "exp.datasets.assets.ensure_asset",
+            side_effect=RuntimeError("mirror down"),
+        ),
+        patch("exp.splits.urllib.request.urlretrieve") as mock_retrieve,
+    ):
         # Mock failed download that creates a partial/empty file
         def side_effect(url, dst):
             with open(dst, "w") as f:

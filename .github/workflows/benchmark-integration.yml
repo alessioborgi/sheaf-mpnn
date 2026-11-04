@@ -1,0 +1,40 @@
+name: Benchmark Integration Tests
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # weekly, Monday 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  UV_NO_CACHE: "true"
+
+jobs:
+  integration:
+    name: Efficiency benchmark integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      - name: Install this repo's dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Set up the original repo's environment
+        run: CUDA_TAG=cpu bash scripts/benchmark/setup_original_env.sh
+
+      - name: Run benchmark integration tests
+        run: uv run pytest tests/exp/benchmark -m integration -v

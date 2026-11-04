@@ -1,0 +1,45 @@
+name: Integration Tests
+
+on:
+  schedule:
+    # 02:00 UTC every day
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_NO_CACHE: "true"
+
+jobs:
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'alessioborgi'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+          python-version: "3.13"
+
+      - name: Install Dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Run Integration Tests
+        run: |
+          uv run pytest tests/integration/ -m integration \
+            -v \
+            --tb=short \
+            --no-header \
+            -p no:cacheprovider

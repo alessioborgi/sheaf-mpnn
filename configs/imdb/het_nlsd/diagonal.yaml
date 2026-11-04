@@ -1,0 +1,107 @@
+# Het NLSD sweep on imdb - diagonal restriction map.
+#
+# Heterogeneous Nonlinear Sheaf Diffusion: the NLSD operator
+# L^Phi = delta^T o Phi o delta (Zaghen et al., GRaM @ ICML 2024) with the
+# restriction maps generated from the het context -- node features, node types,
+# edge types, or a per-edge-type ensemble of generator MLPs.
+#
+# num_node_types / num_edge_types are not swept: they describe the loaded
+# graph, and HetSheafLightningModule back-fills them from HetDatasetInfo.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/imdb/het_nlsd/diagonal.yaml \
+#     --preset imdb_het_nlsd_diagonal
+
+model: het_nlsd
+
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 3, 4, 5]
+  hidden_dim:
+    type: categorical
+    choices: [8, 16, 32, 64]
+  num_layers:
+    type: int
+    low: 2
+    high: 6
+  alpha:
+    type: float
+    low: 0.01
+    high: 4.0
+    log: true
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  lr:
+    type: categorical
+    choices: [0.02, 0.01, 0.002]
+  weight_decay:
+    type: float
+    low: 0.0000001
+    high: 0.01
+    log: true
+  sheaf_decay:
+    type: float
+    low: 0.00000001
+    high: 0.01
+    log: true
+  learn_alpha:
+    type: categorical
+    choices: [false, true]
+  jknet:
+    type: categorical
+    choices: [false, true]
+
+  # Het context: which sources feed the restriction-map generator, and whether
+  # each edge type gets its own generator MLP (TypeEnsemble) instead of one
+  # shared MLP reading a one-hot edge type.
+  use_node_types:
+    type: categorical
+    choices: [false, true]
+  use_edge_types:
+    type: categorical
+    choices: [false, true]
+  ensemble:
+    type: categorical
+    choices: [false, true]
+
+  # Which Phi sits between the coboundary and its transpose. "identity" is
+  # linear het NSD, which the het_nsd family already covers.
+  nlsd_nonlinearity:
+    type: categorical
+    choices: [mlp, scalar_threshold, edge_threshold]
+  nlsd_psi:
+    type: categorical
+    choices: [linear, cos]
+  nlsd_mlp_layers:
+    type: categorical
+    choices: [1, 2, 3]
+  nlsd_init_threshold:
+    type: float
+    low: 0.1
+    high: 10.0
+    log: true
+  threshold_lr:
+    type: float
+    low: 0.0001
+    high: 0.1
+    log: true
+  alpha_lr:
+    type: float
+    low: 0.0001
+    high: 0.1
+    log: true
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 5
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: het-nlsd-imdb-diagonal
+  seed: 42
+  storage: sqlite:///het_nlsd_imdb_diagonal.db   # for distributed sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

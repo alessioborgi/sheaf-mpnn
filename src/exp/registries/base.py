@@ -4,8 +4,13 @@
 
 """Generic registry base class."""
 
+from typing import Generic, TypeVar
 
-class Registry[Key, Value]:
+Key = TypeVar("Key")
+Value = TypeVar("Value")
+
+
+class Registry(Generic[Key, Value]):
     """A typed key-value store that raises on duplicate keys and missing lookups."""
 
     def __init__(self) -> None:

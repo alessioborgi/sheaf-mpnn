@@ -1,0 +1,48 @@
+# NSP sweep on pubmed - low_rank restriction map.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/pubmed/nsp/low_rank.yaml --preset pubmed_nsp_low_rank
+
+model: nsp
+
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 4, 8]
+  hidden_dim:
+    type: categorical
+    choices: [16, 32, 64, 128, 256, 512]
+  num_layers:
+    type: int
+    low: 1
+    high: 8
+  alpha:
+    type: float
+    low: 0.01
+    high: 4.0
+    log: true
+  rank:
+    type: categorical
+    choices: [1, 2, 4]
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2]
+  lr:
+    type: categorical
+    choices: [0.003, 0.0003, 0.00003]
+  weight_decay:
+    type: categorical
+    choices: [0.003, 0.0003, 0.00003]
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: nsp-pubmed-low-rank
+  seed: 42
+  storage: sqlite:///nsp_pubmed_low_rank.db   # uncomment for distributed / resumable sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

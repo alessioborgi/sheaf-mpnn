@@ -2,7 +2,7 @@
 # Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
 #   Fabrizio Silvestri, and Pietro Liò
 
-"""Generate or download pre-computed 60/20/20 train/val/test splits.
+"""Generate or download pre-computed 48/32/20 train/val/test splits.
 
 Two sources are supported:
 
@@ -18,6 +18,10 @@ generate
 
 Files are saved to exp/splits/ as:
     exp/splits/{name}_split_0.6_0.2_{fold}.npz
+
+The 0.6_0.2 in the filename is the historical Geom-GCN naming only: the
+canonical files actually contain ~48% train / 32% val / 20% test masks,
+and the local generator matches those proportions.
 
 Each .npz contains three 1-D boolean arrays of length N:
     train_mask, val_mask, test_mask
@@ -56,8 +60,9 @@ _console = Console()
 
 _DEFAULT_SPLITS_DIR = os.path.join(os.path.dirname(__file__), "splits")
 _N_FOLDS = 10
-_TRAIN_RATIO = 0.6
-_VAL_RATIO = 0.2
+# Match the canonical Geom-GCN masks (48/32/20), not the 0.6_0.2 filename.
+_TRAIN_RATIO = 0.48
+_VAL_RATIO = 0.32
 
 _GEOM_GCN_BASE = "https://github.com/graphdml-uiuc-jlu/geom-gcn/raw/master/splits"
 
@@ -142,7 +147,7 @@ def generate_splits(
     n_folds: int = _N_FOLDS,
     overwrite: bool = False,
 ) -> None:
-    """Generate and save n_folds stratified 60/20/20 splits for *name*.
+    """Generate and save n_folds stratified 48/32/20 splits for *name*.
 
     Skips any fold whose file already exists unless *overwrite* is True.
     """

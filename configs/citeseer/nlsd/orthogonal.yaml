@@ -1,0 +1,107 @@
+# NLSD sweep on citeseer - orthogonal restriction map.
+#
+# Nonlinear Sheaf Diffusion (Zaghen et al., GRaM @ ICML 2024): a learned
+# nonlinearity Phi sits inside the sheaf Laplacian, L^Phi = delta^T Phi delta.
+# "mlp" is the paper's learned Phi; the threshold variants keep the
+# hand-crafted opinion-dynamics gate but learn its threshold.
+#
+# Run with:
+#   python -m exp.sweeps.sweep --yaml-path configs/citeseer/nlsd/orthogonal.yaml \
+#     --preset citeseer_nlsd_orthogonal
+
+model: nlsd
+
+search_space:
+  stalk_dim:
+    type: categorical
+    choices: [2, 3, 4, 5]
+  hidden_dim:
+    type: categorical
+    choices: [8, 16, 32, 64]
+  num_layers:
+    type: int
+    low: 2
+    high: 6
+  alpha:
+    type: float
+    low: 0.01
+    high: 4.0
+    log: true
+  input_dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  dropout:
+    type: categorical
+    choices: [0.0, 0.2, 0.5, 0.7]
+  lr:
+    type: categorical
+    choices: [0.02, 0.01, 0.002]
+  weight_decay:
+    type: float
+    low: 0.0000001
+    high: 0.01
+    log: true
+  sheaf_decay:
+    type: float
+    low: 0.00000001
+    high: 0.01
+    log: true
+
+  sparse_learner:
+    type: categorical
+    choices: [false, true]
+  second_linear:
+    type: categorical
+    choices: [false, true]
+  learn_alpha:
+    type: categorical
+    choices: [false, true]
+
+  # Which Phi sits between the coboundary and its transpose. "identity" is
+  # linear NSD and is swept by the nsd family already, so it is left out.
+  nlsd_nonlinearity:
+    type: categorical
+    choices: [mlp, scalar_threshold, edge_threshold]
+  # Potential whose derivative gates the threshold variants; ignored by "mlp".
+  nlsd_psi:
+    type: categorical
+    choices: [linear, cos]
+  # Depth of the learned Phi; only read by "mlp".
+  nlsd_mlp_layers:
+    type: categorical
+    choices: [1, 2, 3]
+  # Initial threshold for "scalar_threshold".
+  nlsd_init_threshold:
+    type: float
+    low: 0.1
+    high: 10.0
+    log: true
+  # Reference threshold_lr / alpha_lr: dedicated learning rates for the
+  # nonlinearity threshold and the per-stalk diffusion gate.
+  threshold_lr:
+    type: float
+    low: 0.0001
+    high: 0.1
+    log: true
+  alpha_lr:
+    type: float
+    low: 0.0001
+    high: 0.1
+    log: true
+
+  orth_strategy:
+    type: categorical
+    choices: [cayley, fasthpp, householder]
+  edge_weights:
+    type: categorical
+    choices: [false, true]
+
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10  # Bodnar protocol: every trial trains all 10 folds
+  std_weight: 0.0            # penalty weight on std; 0 = optimise pure mean
+  study_name: nlsd-citeseer-orthogonal
+  seed: 42
+  storage: sqlite:///nlsd_citeseer_orthogonal.db   # for distributed sweeps
+  wandb_project: sheaf-mpnn-runs       # uncomment to log to Weights & Biases
+  wandb_entity: adavit

@@ -1,0 +1,15 @@
+name: Feature request
+description: Suggest a new model, dataset or feature
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like?
+      description: The feature, and the use case it serves. Link the paper for new models or datasets.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

@@ -2,21 +2,13 @@
 # Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
 #   Fabrizio Silvestri, and Pietro Liò
 
-import random
 
 import pytest
 import torch
 from torch_geometric.utils import erdos_renyi_graph
 
 from sheaf_mpnn.nsd.nsd_model import NSDModel, NSDVariant
-
-
-def set_seed(seed=42):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.use_deterministic_algorithms(True)
+from tests.testing import set_seed
 
 
 @pytest.mark.parametrize("variant", list(NSDVariant))

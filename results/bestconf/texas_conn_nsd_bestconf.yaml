@@ -1,0 +1,11 @@
+best_params:
+  alpha: 0.2178055080470226
+  dropout: 0.5
+  hidden_dim: 64
+  input_dropout: 0.0
+  lr: 0.0003
+  normalize_output: false
+  num_layers: 2
+  stalk_dim: 8
+  weight_decay: 0.0003
+model: conn_nsd

@@ -2,7 +2,6 @@
 # Authors: Alessio Borgi, Luke Braithwaite, Mario Severino, Emanuele Mule,
 #   Fabrizio Silvestri, and Pietro Liò
 
-import random
 
 import pytest
 import torch
@@ -14,13 +13,7 @@ from sheaf_mpnn.nsd.nsd_layers import (
     LowRankNSDConv,
     OrthogonalNSDConv,
 )
-
-
-def set_seed(seed=42):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
+from tests.testing import set_seed
 
 
 @pytest.mark.parametrize(

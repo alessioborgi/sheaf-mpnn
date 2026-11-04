@@ -10,6 +10,49 @@ import numpy as np
 import torch
 
 
+def batched_procrustes_align(
+    Z: torch.Tensor,
+    anchor: torch.Tensor,
+    proper: bool = True,
+) -> torch.Tensor:
+    r"""Align each :math:`Z_i` to a shared anchor via the optimal Procrustes rotation.
+
+    Solves the orthogonal Procrustes problem in closed form via SVD:
+
+    .. math::
+
+        R_i^* = \arg\min_{R \,\in\, O(d)} \|R^\top Z_i - A\|_F^2,
+        \quad C_i = Z_i A^\top = U S V^\top
+        \;\Rightarrow\; R_i^* = U V^\top,\quad
+        Z_{i,\mathrm{aligned}} = {R_i^*}^\top Z_i
+
+    This removes the residual :math:`O(d)` gauge ambiguity left after per-node
+    whitening.
+
+    Args:
+        Z: Whitened stalk embeddings [N, d, C].
+        anchor: Shared learnable anchor matrix [d, C].
+        proper: If True, restrict to :math:`SO(d)` (:math:`\det = +1`) by
+                reflecting the last singular vector of :math:`U` when the
+                unconstrained rotation has :math:`\det = -1`.
+
+    Returns:
+        Procrustes-aligned embeddings [N, d, C].
+    """
+    C = Z @ anchor.T[None]  # [N, d, C] @ [1, C, d] -> [N, d, d]
+    U, _, Vh = torch.linalg.svd(C)  # C = U diag(S) Vh, Vh = V^T
+
+    if proper:
+        # det(U Vh) may be -1; flip last column of U so det(R*) = +1
+        d_sign = torch.linalg.det(U @ Vh).sign()  # [N]
+        sign_flip = torch.ones(U.shape[0], U.shape[-1], device=U.device, dtype=U.dtype)
+        sign_flip[:, -1] = d_sign
+        U = U * sign_flip[:, None, :]  # scale last column: [N, d, d] * [N, 1, d]
+
+    R = U @ Vh  # R* = U V^T in O(d) (or SO(d)), shape [N, d, d]
+    return R.mT @ Z  # Z_i_aligned = R_i*^T Z_i, shape [N, d, C]
+
+
 def cayley(params: torch.Tensor, d: int, clamp_val: float = 10.0) -> torch.Tensor:
     """Cayley transform from skew-symmetric matrix entries to orthogonal W.
 
@@ -128,7 +171,7 @@ def _load_torch_householder_orgqr():
     callable, or None when the extension is unavailable.
     """
     try:
-        from torch_householder import (  # ty: ignore[unresolved-import]
+        from torch_householder import (
             torch_householder_orgqr,
         )
 

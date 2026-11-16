@@ -22,8 +22,9 @@ have not all been repeated during preparation of this review branch.
 ## Current validation
 
 The six core convolution/layer/model test files completed with exit code 0
-on Windows. Loading the optional compiled `torch_householder` extension emitted
-a Windows loader diagnostic; the tests continued using the native fallback.
+on Windows. The contributor also reports that all datasets run on the server
+without runtime errors; those server runs were not independently repeated
+during preparation of this review branch.
 Full CI, integration tests, documentation and type checks have not been rerun
 as part of this branch preparation.
 

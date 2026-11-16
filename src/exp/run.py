@@ -272,7 +272,19 @@ def _display_results(cfg: Config, info: DatasetInfo, results: list[float]) -> No
 
 
 def run(cfg: Config) -> list[float]:
-    """Run 10-fold cross-validation; return per-fold test metrics."""
+    """Run experiments; HSNN returns validation metrics unless test is enabled."""
+    if cfg.model.type == ModelType.DHSNN:
+        from exp.dhsnn_run import run as run_dhsnn
+
+        return run_dhsnn(cfg)
+    if cfg.model.type == ModelType.HSNN:
+        from exp.hsnn_run import run as run_hsnn
+
+        return run_hsnn(cfg)
+    from exp.datasets.hypergraph import is_hypergraph
+
+    if is_hypergraph(cfg.dataset.name):
+        raise ValueError("cora_hypergraph requires --model.type hsnn or dhsnn")
     _silence_third_party()
     setup_torch(precision="high", seed=cfg.cv.seed)
 

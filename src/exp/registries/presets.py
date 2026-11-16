@@ -33,6 +33,7 @@ from exp.config import (
     RegConfig,
     WandBConfig,
 )
+from exp.datasets.hypergraph import HYPERGRAPHS
 from exp.registries.base import Registry
 
 
@@ -755,3 +756,49 @@ for _ds in ("lastfm", "movielens"):
 preset_registry: PresetRegistry = PresetRegistry()
 for _name, _cfg in _PRESETS.items():
     preset_registry.register(_name, _cfg)
+
+# Initial configuration, not a tuned reproduction of the DSHN paper.
+preset_registry.register(
+    "hsnn_cora",
+    Config(
+        dataset=DatasetConfig(name="cora_hypergraph", root="data/cora-dshn"),
+        model=ModelConfig(type=ModelType.HSNN, variant="diagonal"),
+        reg=RegConfig(dropout=0.5),
+        optim=OptimConfig(epochs=1500, early_stopping=200, stop_strategy="acc"),
+        cv=CVConfig(folds=10, seed=0),
+    ),
+)
+
+# Preregistered fixed architecture, not the paper's tuned Cora reproduction.
+preset_registry.register(
+    "dhsnn_cora",
+    Config(
+        dataset=DatasetConfig(
+            name="cora_hypergraph", root="data/cora-dshn", directed=True
+        ),
+        model=ModelConfig(type=ModelType.DHSNN, variant="diagonal"),
+        reg=RegConfig(dropout=0.5),
+        optim=OptimConfig(epochs=1500, early_stopping=200, stop_strategy="acc"),
+        cv=CVConfig(folds=10, seed=0),
+    ),
+)
+
+
+# Public graph/hypergraph namespaces remain distinct.
+
+for _hypergraph_name in HYPERGRAPHS:
+    preset_registry.register(
+        _hypergraph_name,
+        Config(
+            dataset=DatasetConfig(
+                name=_hypergraph_name,
+                root="data/cora-dshn"
+                if _hypergraph_name == "cora-hypergraph"
+                else "data/hypergraphs",
+            ),
+            model=ModelConfig(type=ModelType.HSNN, variant="diagonal"),
+            reg=RegConfig(dropout=0.5),
+            optim=OptimConfig(epochs=1500, early_stopping=200, stop_strategy="acc"),
+            cv=CVConfig(folds=10, seed=0),
+        ),
+    )

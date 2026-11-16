@@ -46,6 +46,12 @@ class SheafLightningModule(LightningModule):
 
     def __init__(self, cfg: Config, info: DatasetInfo) -> None:
         super().__init__()
+        if cfg.model.type in (ModelType.HSNN, ModelType.DHSNN):
+            raise ValueError(
+                "HSNN/DHSNN requires the hypergraph runner: "
+                "sheaf run --preset hsnn_cora or dhsnn_cora; "
+                "ordinary graph Lightning training/sweeps are unsupported"
+            )
         self.cfg = cfg
         self.info = info
         try:

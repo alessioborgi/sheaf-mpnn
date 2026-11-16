@@ -3,6 +3,13 @@
 #   Fabrizio Silvestri, and Pietro Liò
 
 from .conn_nsd_model import ConnectionLaplacianNSDModel
+from .hsnn_layers import (
+    DiagonalHSNNConv,
+    GeneralHSNNConv,
+    LowRankHSNNConv,
+    OrthogonalHSNNConv,
+)
+from .hsnn_model import HSNNModel, HSNNVariant
 from .nsd_layers import (
     ConnectionLaplacianNSDConv,
     DiagonalNSDConv,
@@ -21,6 +28,12 @@ from .poly_nsd_layers import (
 from .poly_nsd_model import PolyNSDModel, PolyNSDVariant
 
 __all__ = [
+    "DiagonalHSNNConv",
+    "GeneralHSNNConv",
+    "OrthogonalHSNNConv",
+    "LowRankHSNNConv",
+    "HSNNModel",
+    "HSNNVariant",
     "ConnectionLaplacianNSDConv",
     "ConnectionLaplacianNSDModel",
     "DiagonalNSDConv",
@@ -36,4 +49,21 @@ __all__ = [
     "OrthogonalPolyNSDConv",
     "PolyNSDModel",
     "PolyNSDVariant",
+]
+
+from sheaf_mpnn.nsd.dhsnn_layers import (
+    DiagonalDHSNNConv,
+    GeneralDHSNNConv,
+    LowRankDHSNNConv,
+    OrthogonalDHSNNConv,
+)
+from sheaf_mpnn.nsd.dhsnn_model import DHSNNModel, DHSNNVariant
+
+__all__ += [
+    "DiagonalDHSNNConv",
+    "GeneralDHSNNConv",
+    "LowRankDHSNNConv",
+    "OrthogonalDHSNNConv",
+    "DHSNNModel",
+    "DHSNNVariant",
 ]

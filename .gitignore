@@ -42,6 +42,9 @@ src/exp/data/*
 !src/exp/data/.gitkeep
 checkpoints/
 tmp/
+runs/
+.pytest_cache/
+.ruff_cache/
 
 # Figures and rendered images (LaTeX sources + generated PDFs/PNGs)
 figures/

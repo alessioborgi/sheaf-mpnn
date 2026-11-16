@@ -1,0 +1,226 @@
+[
+  {
+    "dataset": "roman-empire-hypergraph",
+    "task": "node",
+    "nodes": 22662,
+    "features": 300,
+    "hyperedges": 22662,
+    "incidences": 61805,
+    "classes": 18,
+    "folds": 10,
+    "split_sizes": [
+      11331,
+      5665,
+      5666
+    ],
+    "sha256": "f8d58a7a558188376f7b1b85dd9f5b299a0df2ef986a812961c2fdb212b2a386"
+  },
+  {
+    "dataset": "squirrel-hypergraph",
+    "task": "node",
+    "nodes": 2223,
+    "features": 2089,
+    "hyperedges": 2060,
+    "incidences": 49058,
+    "classes": 5,
+    "folds": 10,
+    "split_sizes": [
+      1053,
+      718,
+      452
+    ],
+    "sha256": "53829722c7851dd8a9743846c5c489a2a38a4b5be184beebceba7eb4f085acce"
+  },
+  {
+    "dataset": "email-eu-hypergraph",
+    "task": "node",
+    "nodes": 986,
+    "features": 1,
+    "hyperedges": 787,
+    "incidences": 34123,
+    "classes": 10,
+    "folds": 10,
+    "split_sizes": [
+      493,
+      246,
+      247
+    ],
+    "sha256": "b6f6657ffe381f282f1d50a77525c82075ad57e98bcf37671eba41781295bf96"
+  },
+  {
+    "dataset": "telegram-hypergraph",
+    "task": "node",
+    "nodes": 245,
+    "features": 1,
+    "hyperedges": 183,
+    "incidences": 9095,
+    "classes": 4,
+    "folds": 10,
+    "split_sizes": [
+      146,
+      47,
+      52
+    ],
+    "sha256": "eeedc0184f7106c295c3663b0b1c3a5b77a9cda362a43f0e4b510296534b64fb"
+  },
+  {
+    "dataset": "chameleon-hypergraph",
+    "task": "node",
+    "nodes": 890,
+    "features": 2325,
+    "hyperedges": 797,
+    "incidences": 9651,
+    "classes": 5,
+    "folds": 10,
+    "split_sizes": [
+      409,
+      287,
+      194
+    ],
+    "sha256": "9784223795a74fa22aadc9c05a3816603436497e2ccc329b11f212111ae5493d"
+  },
+  {
+    "dataset": "email-enron-hypergraph",
+    "task": "node",
+    "nodes": 143,
+    "features": 1,
+    "hyperedges": 139,
+    "incidences": 2722,
+    "classes": 7,
+    "folds": 10,
+    "split_sizes": [
+      71,
+      35,
+      37
+    ],
+    "sha256": "90804e2473544993c9330bb4ea8efee5164ce59edb29ef09d5d9bbc37cc87d5a"
+  },
+  {
+    "dataset": "cornell-hypergraph",
+    "task": "node",
+    "nodes": 183,
+    "features": 1703,
+    "hyperedges": 96,
+    "incidences": 391,
+    "classes": 5,
+    "folds": 10,
+    "split_sizes": [
+      87,
+      59,
+      37
+    ],
+    "sha256": "ff07afe9c448fb6a21de84c27144ecfaf23e218abd28b4170661898268027e87"
+  },
+  {
+    "dataset": "wisconsin-hypergraph",
+    "task": "node",
+    "nodes": 251,
+    "features": 1703,
+    "hyperedges": 170,
+    "incidences": 669,
+    "classes": 5,
+    "folds": 10,
+    "split_sizes": [
+      120,
+      80,
+      51
+    ],
+    "sha256": "6c624347cc5cb0840822c6c07400ba1df62816632ee778483a224d91922ef6ba"
+  },
+  {
+    "dataset": "amazon-ratings-hypergraph",
+    "task": "node",
+    "nodes": 24492,
+    "features": 300,
+    "hyperedges": 24456,
+    "incidences": 137732,
+    "classes": 5,
+    "folds": 10,
+    "split_sizes": [
+      12246,
+      6123,
+      6123
+    ],
+    "sha256": "458a1a5a537f50e4edc0caedf9668bf3a7b46ed86da963b8808311fa42f013d5"
+  },
+  {
+    "dataset": "texas-hypergraph",
+    "task": "node",
+    "nodes": 183,
+    "features": 1703,
+    "hyperedges": 110,
+    "incidences": 419,
+    "classes": 5,
+    "folds": 10,
+    "split_sizes": [
+      87,
+      59,
+      37
+    ],
+    "sha256": "6c2d4a4ee0bb726a6440118ab4aa81fae1d0731e460e2be208fbcf010a985022"
+  },
+  {
+    "dataset": "citeseer-hypergraph",
+    "task": "node",
+    "nodes": 3312,
+    "features": 3703,
+    "hyperedges": 1951,
+    "incidences": 6542,
+    "classes": 6,
+    "folds": 10,
+    "split_sizes": [
+      1656,
+      828,
+      828
+    ],
+    "sha256": "63b4dc85fc40acbe81747934e984c3a27b5d15a2c94cc9a15ca11c1d4075f93f"
+  },
+  {
+    "dataset": "cora-hypergraph",
+    "task": "node",
+    "nodes": 2708,
+    "features": 1433,
+    "hyperedges": 1565,
+    "incidences": 6994,
+    "classes": 7,
+    "folds": 10,
+    "split_sizes": [
+      1354,
+      677,
+      677
+    ],
+    "sha256": "0eea99c2d4955ffa7ef1945912b3e98301b038fec2152c197125d7b757296686"
+  },
+  {
+    "dataset": "molecular-1-hypergraph",
+    "task": "hyperedge",
+    "nodes": 100523,
+    "features": 128,
+    "hyperedges": 50016,
+    "incidences": 135605,
+    "classes": 10,
+    "folds": 10,
+    "split_sizes": [
+      25008,
+      12504,
+      12504
+    ],
+    "sha256": "0bfa7f6e5ec05edd138ed8dbbe7a2bc1d057add0f8d473e05524a79140f933f8"
+  },
+  {
+    "dataset": "molecular-2-hypergraph",
+    "task": "hyperedge",
+    "nodes": 956,
+    "features": 128,
+    "hyperedges": 2671,
+    "incidences": 20782,
+    "classes": 6,
+    "folds": 10,
+    "split_sizes": [
+      1335,
+      667,
+      669
+    ],
+    "sha256": "d561d3c186c1a9272074d2f2b1f3a931ce1504783d7086d10d54f7cb1d1e0384"
+  }
+]

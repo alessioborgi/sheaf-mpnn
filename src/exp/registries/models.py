@@ -77,6 +77,55 @@ def _parse_variant(enum_cls: type[E], name: str) -> E:
         ) from None
 
 
+def _build_hsnn(
+    in_channels: int, out_channels: int, cfg: ModelConfig, reg: RegConfig
+) -> nn.Module:
+    from sheaf_mpnn import HSNNModel, HSNNVariant
+
+    return HSNNModel(
+        in_channels=in_channels,
+        out_channels=out_channels,
+        stalk_dim=cfg.stalk_dim,
+        hidden_dim=cfg.hidden_dim,
+        num_layers=cfg.num_layers,
+        variant=_parse_variant(HSNNVariant, cfg.variant),
+        rank=cfg.rank,
+        orth_strategy=cfg.orth_strategy,
+        input_dropout=reg.input_dropout,
+        dropout=reg.dropout,
+        residual=cfg.hsnn_residual,
+        degree_regularization=cfg.hsnn_degree_regularization,
+    )
+
+
+def _build_dhsnn(
+    in_channels: int, out_channels: int, cfg: ModelConfig, reg: RegConfig
+) -> nn.Module:
+    from sheaf_mpnn import DHSNNModel, DHSNNVariant
+
+    return DHSNNModel(
+        in_channels,
+        out_channels,
+        stalk_dim=cfg.stalk_dim,
+        hidden_dim=cfg.hidden_dim,
+        num_layers=cfg.num_layers,
+        variant=_parse_variant(DHSNNVariant, cfg.variant),
+        rank=cfg.rank,
+        orth_strategy=cfg.orth_strategy,
+        input_dropout=reg.input_dropout,
+        dropout=reg.dropout,
+        residual=cfg.hsnn_residual,
+        degree_regularization=cfg.hsnn_degree_regularization,
+        q=cfg.dhsnn_q,
+        activation=cfg.dhsnn_activation,
+        **{
+            name.removeprefix("dhsnn_"): value
+            for name, value in vars(cfg).items()
+            if name.startswith("dhsnn_") and name not in ("dhsnn_q", "dhsnn_activation")
+        },
+    )
+
+
 def _build_nsd(
     in_channels: int, out_channels: int, cfg: ModelConfig, reg: RegConfig
 ) -> nn.Module:
@@ -972,6 +1021,7 @@ def _build_het_bunn(
 # ---------------------------------------------------------------------------
 
 model_registry: ModelRegistry = ModelRegistry()
+model_registry.register("hsnn", ModelEntry(factory=_build_hsnn))
 model_registry.register("nsd", ModelEntry(factory=_build_nsd))
 model_registry.register("bsnn", ModelEntry(factory=_build_bsnn))
 model_registry.register("nlsd", ModelEntry(factory=_build_nlsd))
@@ -1002,3 +1052,5 @@ model_registry.register("het_sheaf_adj", ModelEntry(factory=_build_het_sheaf_adj
 model_registry.register("het_dnsd", ModelEntry(factory=_build_het_dnsd))
 model_registry.register("het_conn_nsd", ModelEntry(factory=_build_het_conn_nsd))
 model_registry.register("het_bunn", ModelEntry(factory=_build_het_bunn))
+
+model_registry.register("dhsnn", ModelEntry(factory=_build_dhsnn))

@@ -11,10 +11,24 @@ Generated from the docstrings of the three packages:
   (configuration, dataset loaders, Lightning modules, registries, sweeps and
   the efficiency benchmark).
 
+Undirected Hypergraph Sheaf Neural Networks expose `HSNNModel`, `HSNNVariant`,
+`BaseHypergraphSheafConv` and four convolution variants through `sheaf_mpnn`.
+See [HSNN usage and mathematical conventions](hsnn.md) for the incidence API;
+these models use a separate hypergraph base. Run the audited Cora hypergraph
+experiment with `sheaf run --preset hsnn_cora`.
+
 ```{toctree}
 :maxdepth: 2
 
 api/sheaf_mpnn/index
 api/hetsheaf_mpnn/index
 api/exp/index
+hsnn
+hsnn-implementation-zh
+hsnn-cora-protocol-zh
+hsnn-sweep-zh
 ```
+
+## Directed hypergraph sheaves
+
+See [DHSNN API and operator conventions](dhsnn.md) for the implemented magnetic message-passing layers, four map families, complex model, and audited Cora protocol.

@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from exp.datasets.hypergraph import HYPERGRAPHS
 from exp.registries.base import Registry
 
 
@@ -25,7 +26,7 @@ class DatasetEntry:
     """
 
     metric: Literal["acc", "roc_auc"]
-    split_type: Literal["npz_file", "pyg_mask"]
+    split_type: Literal["npz_file", "pyg_mask", "hypergraph"]
     num_splits: int = 10
 
 
@@ -105,3 +106,10 @@ for _alpha in ("0.05", "0.08", "0.1"):
             f"dataset_nodes500_alpha{_alpha}_beta{_beta}",
             DatasetEntry(metric="acc", split_type="pyg_mask"),
         )
+
+
+
+for _hypergraph_name in HYPERGRAPHS:
+    dataset_registry.register(
+        _hypergraph_name, DatasetEntry(metric="acc", split_type="hypergraph")
+    )

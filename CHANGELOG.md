@@ -6,6 +6,26 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+- Add complex directed hypergraph sheaf message passing, four DHSNN map families, a complex-state model, and an audited Cora charge-ablation runner.
+
+
+### Added
+
+- Undirected Hypergraph Sheaf Neural Networks (`HSNNModel`, `HSNNVariant`) with
+  diagonal, general, orthogonal and pure low-rank incidence restriction maps.
+  Two-stage message passing applies symmetric sheaf-degree propagation without
+  constructing a global Laplacian, with differentiable pseudoinverse degrees,
+  optional degree regularization and residuals. Includes independent mathematical
+  tests, a synthetic training smoke script and Python API documentation. Existing
+  graph implementations and experiment CLI behavior are unchanged.
+- `sheaf run --preset hsnn_cora` with audited Cora hypergraph artifacts,
+  frozen splits and opt-in final test evaluation. Shares existing typed config
+  and registries; the legacy HSNN training script delegates to the packaged
+  runner. Existing graph presets retain their behavior.
+- Validation-only HSNN Optuna sweeps through `sheaf sweep`, with equal-budget
+  diagonal/general YAMLs, a per-GPU launcher, persistent studies and explicit
+  export of the selected final-test command.
+
 ## [0.1.0]
 
 First packaged release, accompanying

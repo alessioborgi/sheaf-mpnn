@@ -1,0 +1,61 @@
+# sheaf sweep --yaml-path configs/hypergraphs/squirrel-hypergraph/hsnn/orthogonal.yaml --preset squirrel-hypergraph
+model: hsnn
+dataset:
+  name: squirrel-hypergraph
+  root: data/hypergraphs
+  directed: false
+search_space:
+  variant:
+    type: categorical
+    choices:
+    - orthogonal
+  stalk_dim:
+    type: categorical
+    choices:
+    - 2
+    - 4
+    - 8
+  hidden_dim:
+    type: categorical
+    choices:
+    - 16
+    - 32
+    - 64
+  num_layers:
+    type: int
+    low: 1
+    high: 6
+  input_dropout:
+    type: float
+    low: 0.0
+    high: 0.8
+  dropout:
+    type: categorical
+    choices:
+    - 0.0
+    - 0.2
+    - 0.5
+  lr:
+    type: float
+    low: 0.001
+    high: 0.02
+    log: true
+  weight_decay:
+    type: categorical
+    choices:
+    - 0.0
+    - 5.0e-05
+    - 0.0005
+  orth_strategy:
+    type: categorical
+    choices:
+    - cayley
+    - householder
+config:
+  n_trials: 250
+  budget_states: finished
+  n_seeds_per_trial: 10
+  seed: 0
+  cuda: 0
+  study_name: squirrel-hypergraph-hsnn-orthogonal
+  storage: sqlite:///runs/hypergraph-sweeps/squirrel-hypergraph-hsnn-orthogonal.db

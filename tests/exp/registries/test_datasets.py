@@ -8,6 +8,7 @@ import dataclasses
 
 import pytest
 
+from exp.datasets.hypergraph import HYPERGRAPHS
 from exp.registries.datasets import DatasetEntry, DatasetRegistry, dataset_registry
 
 # All datasets expected in the registry: the 16 undirected benchmarks plus the
@@ -17,29 +18,33 @@ _SYNTHETIC = {
     for a in ("0.05", "0.08", "0.1")
     for b in ("0.05", "0.1", "0.15", "0.2", "0.25", "0.3", "0.35", "0.4")
 }
-_ALL = {
-    "cora",
-    "citeseer",
-    "pubmed",
-    "chameleon",
-    "squirrel",
-    "chameleon_filtered",
-    "squirrel_filtered",
-    "cornell",
-    "texas",
-    "wisconsin",
-    "film",
-    "amazon_ratings",
-    "minesweeper",
-    "questions",
-    "roman_empire",
-    "tolokers",
-    "telegram",
-    "ogbn_arxiv",
-    "ogbn_products",
-    "ogbn_proteins",
-    "pokec",
-} | _SYNTHETIC
+_ALL = (
+    {
+        "cora",
+        "citeseer",
+        "pubmed",
+        "chameleon",
+        "squirrel",
+        "chameleon_filtered",
+        "squirrel_filtered",
+        "cornell",
+        "texas",
+        "wisconsin",
+        "film",
+        "amazon_ratings",
+        "minesweeper",
+        "questions",
+        "roman_empire",
+        "tolokers",
+        "telegram",
+        "ogbn_arxiv",
+        "ogbn_products",
+        "ogbn_proteins",
+        "pokec",
+    }
+    | _SYNTHETIC
+    | set(HYPERGRAPHS)
+)
 
 _NPZ = {
     "cora",
@@ -82,7 +87,7 @@ class TestDatasetRegistryContents:
             for name in dataset_registry.list_keys()
             if dataset_registry.get(name).split_type == "pyg_mask"
         }
-        assert pyg == _ALL - _NPZ
+        assert pyg == _ALL - _NPZ - set(HYPERGRAPHS)
 
     def test_roc_auc_datasets(self):
         roc = {

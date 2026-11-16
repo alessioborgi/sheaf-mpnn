@@ -21,6 +21,8 @@ The current torch 2.8.0 pin has no Intel macOS wheel. Use a supported Linux/Wind
 
 For notebooks 8 and 9, leave `RUN_STUDENT_IMPLEMENTATION = False` until the TODO methods are implemented. The intentional `NotImplementedError` methods are not called during the default walkthrough, and the reference computations in each notebook double as a test suite for your implementation.
 
+The implemented undirected HSNN library API is available as `sheaf_mpnn.HSNNModel`, with diagonal, general, orthogonal and low-rank restriction maps. See [HSNN usage and mathematical conventions](../docs/hsnn.md) for the working API, the normalization and update choices relative to notebook 8, and CPU/CUDA validation results. The notebook's student scaffold remains an exercise.
+
 ## Validation status
 
 All ten notebooks were executed top to bottom without errors in the locked environment (Python 3.13, PyTorch 2.8.0, PyTorch Geometric 2.7.0, Lightning 2.6.0, CPU, Apple Silicon macOS) on 2026-11-03, and the committed outputs come from that run. They pass `ruff check` and `ruff format --check` with the repository configuration.
@@ -46,3 +48,7 @@ Figures from the original papers are embedded as notebook attachments for teachi
 | 9 | Mule et al. (2025), *Directional Sheaf Hypergraph Networks* | [2510.04727](https://arxiv.org/abs/2510.04727) | Fig. 1, two appendix figures | CC BY 4.0 |
 
 The large figure at the top of notebook 1 is the repository's own (`img/MPSNN.pdf`).
+
+## Directed hypergraph sheaves
+
+See [Notebook 9](9_Directed_Hypergraph_Sheaf_Neural_Networks.ipynb) and [DHSNN API](../docs/dhsnn.md) for the implemented magnetic message-passing layers, four map families, complex model, and audited Cora protocol.

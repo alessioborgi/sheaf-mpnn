@@ -24,6 +24,7 @@ from sheaf_mpnn.csnn import (
     CSNNModel,
     CSNNVariant,
 )
+from sheaf_mpnn.hypergraph_sheaf_conv import BaseHypergraphSheafConv
 from sheaf_mpnn.id_sheaf.id_sheaf_layers import IdentitySheafConv
 from sheaf_mpnn.id_sheaf.id_sheaf_model import IdentitySheafModel
 from sheaf_mpnn.jointdiff.joint_layers import JointDiffusionSheafConv
@@ -41,13 +42,19 @@ from sheaf_mpnn.nlsd import (
 )
 from sheaf_mpnn.nsd import (
     BasePolyNSDConv,
+    DiagonalHSNNConv,
     DiagonalNSDConv,
     DiagonalPolyNSDConv,
+    GeneralHSNNConv,
     GeneralNSDConv,
     GeneralPolyNSDConv,
+    HSNNModel,
+    HSNNVariant,
+    LowRankHSNNConv,
     LowRankPolyNSDConv,
     NSDModel,
     NSDVariant,
+    OrthogonalHSNNConv,
     OrthogonalNSDConv,
     OrthogonalPolyNSDConv,
     PolyNSDModel,
@@ -77,6 +84,13 @@ from sheaf_mpnn.sheaf_pool import SheafPool
 
 __all__ = [
     "BaseSheafConv",
+    "BaseHypergraphSheafConv",
+    "DiagonalHSNNConv",
+    "GeneralHSNNConv",
+    "OrthogonalHSNNConv",
+    "LowRankHSNNConv",
+    "HSNNModel",
+    "HSNNVariant",
     "SheafPool",
     "BSNNModel",
     "BSNNVariant",
@@ -138,4 +152,21 @@ __all__ = [
     "CSNNModel",
     "CSNNVariant",
     "ConformalSheafLearner",
+]
+
+from sheaf_mpnn.nsd.dhsnn_layers import (
+    DiagonalDHSNNConv,
+    GeneralDHSNNConv,
+    LowRankDHSNNConv,
+    OrthogonalDHSNNConv,
+)
+from sheaf_mpnn.nsd.dhsnn_model import DHSNNModel, DHSNNVariant
+
+__all__ += [
+    "DiagonalDHSNNConv",
+    "GeneralDHSNNConv",
+    "LowRankDHSNNConv",
+    "OrthogonalDHSNNConv",
+    "DHSNNModel",
+    "DHSNNVariant",
 ]

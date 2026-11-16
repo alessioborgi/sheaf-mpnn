@@ -68,3 +68,14 @@ that used the public undirected versions.
   `reddit_5k`.
 - Link prediction: DataModules for `lastfm` and `movielens` in
   {py:mod}`exp.datasets.link_pred`.
+
+
+### Hypergraph reference splits
+
+All 14 hypergraph presets enforce the packaged numeric reference fingerprints
+for features, labels, incidences, roles and every train/validation/test index.
+The reference is DirectionalSheafHypergraphs commit
+`d94f81bc7d86bd8d41e416083063f3446c1ad796`, with seed 0, ten runs,
+50/25/25 random splits where applicable and unchanged predefined masks otherwise.
+`cv.seed` changes model initialization only. A mismatched cache is rejected.
+These checks cover the 14 paper benchmarks, not the additional upstream datasets.

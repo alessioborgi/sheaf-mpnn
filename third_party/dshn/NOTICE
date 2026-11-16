@@ -1,0 +1,15 @@
+DSHN reference architecture and numerical conventions
+
+DirectionalSheafHypergraphs, EmaMule and contributors
+https://github.com/EmaMule/DirectionalSheafHypergraphs
+Reference commit: d94f81bc7d86bd8d41e416083063f3446c1ad796
+Licensed under Apache License 2.0 (see LICENSE in this directory).
+
+The directed model, incidence predictor and complex whitening have been
+adapted to sheaf-mpnn's modules and configuration system. Sparse global
+operator assembly is replaced with node-to-edge-to-node message passing.
+Low-rank and FastH variants are library extensions. See docs/dhsnn.md for
+the tested scope and remaining experimental-protocol differences.
+
+The reference orthogonal parameterization credits Twitter, Inc. (2022),
+Apache-2.0. Native orthogonal kernels in this library retain their own notices.

@@ -47,10 +47,10 @@ def test_configs_found() -> None:
 
 @pytest.mark.parametrize("path", _YAML_PATHS, ids=_rel)
 def test_yaml_loads_and_preset_resolves(path: Path) -> None:
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     # Same load path as exp.sweeps.sweep: safe_load then SweepConfig.
     sweep_cfg = SweepConfig.model_validate(yaml.safe_load(text))
-    match = re.search(r"--preset ([a-z_]+)", text)
+    match = re.search(r"--preset ([a-z0-9_-]+)", text)
     assert match is not None, "YAML header must document its --preset"
     base = preset_registry.get(match.group(1))
 
@@ -58,7 +58,8 @@ def test_yaml_loads_and_preset_resolves(path: Path) -> None:
     # identity, and only the preset actually sets dataset and variant. A
     # mismatch silently trains -- and logs to W&B -- something other than what
     # the location and study name claim.
-    dataset_dir, family_dir = path.relative_to(_CONFIGS_DIR).parts[:2]
+    parts = path.relative_to(_CONFIGS_DIR).parts
+    dataset_dir, family_dir = parts[1:3] if parts[0] == "hypergraphs" else parts[:2]
     assert sweep_cfg.model == family_dir, (
         f"{_rel(path)}: YAML sets model={sweep_cfg.model!r}, expected "
         f"{family_dir!r} from its directory"

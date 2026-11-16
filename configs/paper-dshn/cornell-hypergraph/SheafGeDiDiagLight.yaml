@@ -1,0 +1,136 @@
+model: dhsnn
+dataset:
+  name: cornell-hypergraph
+  root: data/hypergraphs
+  directed: true
+search_space:
+  dhsnn_input_norm:
+    type: categorical
+    choices:
+    - true
+    - false
+  dropout:
+    type: categorical
+    choices:
+    - 0.0
+    - 0.1
+    - 0.2
+    - 0.3
+    - 0.4
+    - 0.5
+    - 0.6
+    - 0.7
+    - 0.8
+    - 0.9
+  lr:
+    type: categorical
+    choices:
+    - 0.02
+    - 0.01
+    - 0.005
+    - 0.001
+  weight_decay:
+    type: categorical
+    choices:
+    - 0.0
+    - 5e-5
+    - 5e-4
+  dhsnn_sheaf_dropout:
+    type: categorical
+    choices:
+    - true
+    - false
+  hidden_dim:
+    type: categorical
+    choices:
+    - 32
+    - 64
+    - 128
+    - 256
+    - 512
+  num_layers:
+    type: int
+    low: 1
+    high: 5
+  stalk_dim:
+    type: int
+    low: 1
+    high: 6
+  dhsnn_map_activation:
+    type: categorical
+    choices:
+    - sigmoid
+    - tanh
+    - none
+    - relu
+  dhsnn_left_projection:
+    type: categorical
+    choices:
+    - false
+    - true
+  hsnn_residual:
+    type: categorical
+    choices:
+    - false
+    - true
+  dhsnn_dynamic_sheaf:
+    type: categorical
+    choices:
+    - false
+  dhsnn_special_head:
+    type: categorical
+    choices:
+    - false
+    - true
+  dhsnn_add_identity:
+    type: categorical
+    choices:
+    - false
+    - true
+  dhsnn_prediction:
+    type: categorical
+    choices:
+    - MLP_var3
+  dhsnn_classifier_layers:
+    type: categorical
+    choices:
+    - 2
+  dhsnn_classifier_hidden:
+    type: categorical
+    choices:
+    - 32
+    - 64
+    - 128
+    - 256
+  dhsnn_q:
+    type: categorical
+    choices:
+    - 0.0
+    - 0.05
+    - 0.1
+    - 0.15
+    - 0.2
+    - 0.25
+  epochs:
+    type: categorical
+    choices:
+    - 1500
+  early_stopping:
+    type: categorical
+    choices:
+    - 200
+  dhsnn_light:
+    type: categorical
+    choices:
+    - true
+  variant:
+    type: categorical
+    choices:
+    - diagonal
+config:
+  n_trials: 250
+  n_seeds_per_trial: 10
+  std_weight: 0
+  seed: 0
+  study_name: paper1500-cornell-hypergraph-SheafGeDiDiagLight
+  storage: sqlite:///runs/paper-sweeps/paper1500-cornell-hypergraph-SheafGeDiDiagLight.db

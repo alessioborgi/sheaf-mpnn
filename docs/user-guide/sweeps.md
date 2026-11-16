@@ -60,5 +60,32 @@ runs one distributed study; `n_trials` caps the total across all workers. The
 launcher scripts under `scripts/` show how the shipped sweeps are batched,
 including SLURM submission (`scripts/slurm/sweep.sbatch`).
 
+### Hypergraph studies
+
+All 14 hypergraph benchmarks have eight independent configurations under
+`configs/hypergraphs/<dataset>/{hsnn,dhsnn}/`. Each map family (`diagonal`,
+`orthogonal`, `low_rank`, `general`) has **250 trials**, using the same
+`SweepConfig`, parameter builder and CLI as graph studies:
+
+```bash
+sheaf sweep --yaml-path configs/hypergraphs/cora-hypergraph/hsnn/diagonal.yaml --preset cora-hypergraph
+sheaf sweep --yaml-path configs/hypergraphs/cora-hypergraph/dhsnn/general.yaml --preset cora-hypergraph
+```
+
+Run eight studies sequentially with
+`python scripts/run_hypergraph_campaign.py --dataset cora-hypergraph`.
+Regenerate configurations with `python scripts/generate_hypergraph_sweeps.py`.
+Each trial evaluates ten frozen splits and records test metrics at the
+best-validation checkpoints. Only validation scores select hyperparameters.
+After search, the best configuration is automatically retrained on ten splits
+for final test evaluation; a final-test command is also exported for reference.
+Hypergraph studies currently use local JSON,
+CSV and SQLite artifacts; W&B and concurrent workers in one study are unsupported.
+`budget_states: finished` counts COMPLETE/FAIL/PRUNED toward 250, matching the
+default graph sweep policy; `complete` instead targets 250 successful trials.
+Changed code, data or search spaces require a new study/database because the
+stored protocol fingerprint must match. Existing running trials retain the
+configuration loaded when their process started.
+
 Shipped configurations set `wandb_project` / `wandb_entity` to the authors' W&B
 team. Edit those keys, or run with `WANDB_MODE=disabled`, before launching one.

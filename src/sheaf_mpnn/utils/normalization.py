@@ -60,6 +60,14 @@ class _SymMatrixPowSVD(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_out: torch.Tensor):  # ty: ignore[invalid-method-override]
         vecs, vals, gvals, good = ctx.saved_tensors
+        # Tiny nonzero PSD blocks can have a finite final gradient although
+        # g'(s)=p*s**(p-1) overflows float32 before multiplication by grad_out.
+        # Evaluate the divided differences and products in double precision.
+        input_dtype = vals.dtype
+        if input_dtype == torch.float32:
+            vecs, vals, gvals, grad_out = (
+                value.double() for value in (vecs, vals, gvals, grad_out)
+            )
         p: float = ctx.p
         zero = torch.zeros((), device=vals.device, dtype=vals.dtype)
         dvals = torch.where(good, p * vals.pow(p - 1), zero)
@@ -69,7 +77,7 @@ class _SymMatrixPowSVD(torch.autograd.Function):
         # Within float cancellation range of a tie, the divided difference is
         # numerically meaningless; switch to its analytic limit g'(s).
         tol = vals.max(-1, True).values.unsqueeze(-1) * (
-            10 * torch.finfo(vals.dtype).eps
+            10 * torch.finfo(input_dtype).eps
         )
         near = diff.abs() <= tol
         kernel = torch.where(
@@ -82,7 +90,7 @@ class _SymMatrixPowSVD(torch.autograd.Function):
         sym_grad = 0.5 * (grad_out + grad_out.transpose(-1, -2))
         inner = torch.transpose(vecs, -2, -1) @ sym_grad @ vecs
         grad_matrices = vecs @ (kernel * inner) @ torch.transpose(vecs, -2, -1)
-        return grad_matrices, None
+        return grad_matrices.to(input_dtype), None
 
 
 def batched_sym_matrix_pow_svd(matrices: torch.Tensor, p: float) -> torch.Tensor:

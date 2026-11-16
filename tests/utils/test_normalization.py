@@ -450,3 +450,15 @@ def test_detach_degree_directed_norms():
     (norm_fwd_lrf.sum() + norm_bwd_lrf.sum()).backward()
     assert dst_map_lr.grad is not None
     assert src_map_lr.grad is not None
+
+
+def test_small_psd_inverse_sqrt_backward_remains_finite():
+    from sheaf_mpnn.utils.normalization import batched_sym_matrix_pow_svd
+
+    matrix = (torch.eye(2) * 1e-30).unsqueeze(0).requires_grad_()
+    result = batched_sym_matrix_pow_svd(matrix, -0.5)
+    (result.sum() * 1e-30).backward()
+    assert torch.isfinite(matrix.grad).all()
+    torch.testing.assert_close(
+        matrix.grad, torch.full_like(matrix, -0.5e15), rtol=1e-5, atol=0
+    )

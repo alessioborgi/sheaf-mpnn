@@ -20,6 +20,8 @@ from tyro.constructors import PrimitiveConstructorSpec
 
 
 class ModelType(StrEnum):
+    HSNN = auto()
+    DHSNN = auto()
     NSD = auto()
     BSNN = auto()
     DIRECTED_NSD = auto()
@@ -144,6 +146,29 @@ class ModelConfig:
     # RotInv-specific: evolve maps across layers via the previous layer's maps.
     time_dep: bool = True
     rank: int = 1
+    # Undirected HSNN diffusion options.
+    hsnn_residual: bool = False
+    hsnn_degree_regularization: float = 0.0
+    dhsnn_q: float = 0.25
+    dhsnn_activation: Literal["complex_relu", "componentwise_elu"] = "complex_relu"
+    dhsnn_dynamic_sheaf: bool = False
+    dhsnn_light: bool = False
+    dhsnn_init_hedge: Literal["avg", "rand"] = "avg"
+    dhsnn_orthogonal_map: Literal["native", "matrix_exp"] = "native"
+    dhsnn_map_activation: Literal["sigmoid", "tanh", "relu", "none"] = "sigmoid"
+    dhsnn_prediction: Literal["MLP_var1", "MLP_var2", "MLP_var3"] = "MLP_var1"
+    dhsnn_norm_type: Literal[
+        "degree_norm", "sym_degree_norm", "block_norm", "sym_block_norm"
+    ] = "sym_block_norm"
+    dhsnn_add_identity: bool = True
+    dhsnn_left_projection: bool = False
+    dhsnn_input_norm: bool = True
+    dhsnn_affine_norm: bool = True
+    dhsnn_classifier_hidden: int = 64
+    dhsnn_classifier_layers: int = 2
+    dhsnn_classifier_norm: Literal["ln", "bn", "none"] = "ln"
+    dhsnn_sheaf_dropout: bool = False
+    dhsnn_special_head: bool = False
     # SheafAttn-specific
     num_heads: int = 1
     leaky_relu_slope: float = 0.2
@@ -329,6 +354,14 @@ class WandBConfig:
 
 
 @dataclass
+class HypergraphConfig:
+    """Audited HSNN run controls; ignored by ordinary graph runs."""
+
+    output: str | None = None
+    evaluate_test: bool = True
+
+
+@dataclass
 class Config:
     """Root configuration for a benchmark run."""
 
@@ -339,3 +372,4 @@ class Config:
     cv: CVConfig = field(default_factory=CVConfig)
     hardware: HardwareConfig = field(default_factory=HardwareConfig)
     wandb: WandBConfig = field(default_factory=WandBConfig)
+    hypergraph: HypergraphConfig = field(default_factory=HypergraphConfig)

@@ -577,9 +577,19 @@ def sweep(
 ) -> None:
     """Run a YAML-driven Optuna hyperparameter sweep."""
     _silence_training_noise()
-    raw = yaml.safe_load(yaml_path.read_text())
+    raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
     sweep_cfg = SweepConfig.model_validate(raw)
+    if sweep_cfg.model in ("hsnn", "dhsnn"):
+        from exp.sweeps.hsnn import sweep as sweep_hsnn
+
+        sweep_hsnn(sweep_cfg, preset=preset)
+        return
     base_cfg = preset_registry.get_or_default(preset)
+    if (
+        base_cfg.model.type == ModelType.DHSNN
+        or base_cfg.dataset.name == "cora_hypergraph"
+    ):
+        raise ValueError("Ordinary graph sweeps cannot use a hypergraph preset")
 
     if sweep_cfg.dataset is not None:
         base_cfg = dataclasses.replace(

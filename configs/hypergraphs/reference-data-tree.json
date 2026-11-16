@@ -1,0 +1,497 @@
+{
+  "sha": "d94f81bc7d86bd8d41e416083063f3446c1ad796",
+  "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/d94f81bc7d86bd8d41e416083063f3446c1ad796",
+  "tree": [
+    {
+      "path": "data/original_data/additional",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4da50e31b341526db64bbee321f6ea98e75ac112",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/4da50e31b341526db64bbee321f6ea98e75ac112"
+    },
+    {
+      "path": "data/original_data/additional/amazon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "c98e15f936e58d3e85100751c2a0a553261c408f",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/c98e15f936e58d3e85100751c2a0a553261c408f"
+    },
+    {
+      "path": "data/original_data/additional/amazon/amazon_filtered.npz",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "145acf565d284d49b7d996e354fda0cf3579d64b",
+      "size": 27817046,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/145acf565d284d49b7d996e354fda0cf3579d64b"
+    },
+    {
+      "path": "data/original_data/additional/chameleon",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "1ca102cb7cc5c598f19accfcde693bfa1e495059",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/1ca102cb7cc5c598f19accfcde693bfa1e495059"
+    },
+    {
+      "path": "data/original_data/additional/chameleon/chameleon_filtered.npz",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "90a5725f5f5b4f4a9a02ded8595f86e2969b82ee",
+      "size": 58924,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/90a5725f5f5b4f4a9a02ded8595f86e2969b82ee"
+    },
+    {
+      "path": "data/original_data/additional/questions",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3245ee8e2b623c2892d6f652b20a2b61c167ddb3",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/3245ee8e2b623c2892d6f652b20a2b61c167ddb3"
+    },
+    {
+      "path": "data/original_data/additional/questions/questions_filtered.npz",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "02cd5360d58f2b01af4c2ecdae521d47c9fc37d6",
+      "size": 47389028,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/02cd5360d58f2b01af4c2ecdae521d47c9fc37d6"
+    },
+    {
+      "path": "data/original_data/additional/roman",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "18647ba21b1bec42f3a05ec7ccc52c3a9c6f6509",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/18647ba21b1bec42f3a05ec7ccc52c3a9c6f6509"
+    },
+    {
+      "path": "data/original_data/additional/roman/roman_filtered.npz",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f4aa4c1fab931b21e4b257d3656e2e2febe80be2",
+      "size": 20336823,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/f4aa4c1fab931b21e4b257d3656e2e2febe80be2"
+    },
+    {
+      "path": "data/original_data/additional/squirrel",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d9669fb6e87d8999c0f2caa2580aea3243d12144",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/d9669fb6e87d8999c0f2caa2580aea3243d12144"
+    },
+    {
+      "path": "data/original_data/additional/squirrel/squirrel_filtered.npz",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "a59f6d2e0dc1f11b8e503c426e86f53124c21eb1",
+      "size": 208215,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/a59f6d2e0dc1f11b8e503c426e86f53124c21eb1"
+    },
+    {
+      "path": "data/original_data/cocitation",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3c9cb3f3dddf0a58b9937d3172f4e84ebb87e61a",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/3c9cb3f3dddf0a58b9937d3172f4e84ebb87e61a"
+    },
+    {
+      "path": "data/original_data/cocitation/citeseer",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "3a55f63217ac24401a53aa44025ceeb11ea2638d",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/3a55f63217ac24401a53aa44025ceeb11ea2638d"
+    },
+    {
+      "path": "data/original_data/cocitation/citeseer/citeseer.cites",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "84a67da4e52da6164f68dba8dccbacbbfb891dcc",
+      "size": 137062,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/84a67da4e52da6164f68dba8dccbacbbfb891dcc"
+    },
+    {
+      "path": "data/original_data/cocitation/citeseer/citeseer.content",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b136933b8834b97a16994a902a7259c74e28e30d",
+      "size": 24589190,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/b136933b8834b97a16994a902a7259c74e28e30d"
+    },
+    {
+      "path": "data/original_data/cocitation/citeseer/features.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ba564dff08759c4c6f48c7f20954fc3164dfd0b4",
+      "size": 854949,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/ba564dff08759c4c6f48c7f20954fc3164dfd0b4"
+    },
+    {
+      "path": "data/original_data/cocitation/citeseer/hypergraph.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "fc046e817c20b783f84e15379cf8c3d599ed4322",
+      "size": 72410,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/fc046e817c20b783f84e15379cf8c3d599ed4322"
+    },
+    {
+      "path": "data/original_data/cocitation/citeseer/labels.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6676dc3cf7d7e9e97bda74baab91e0333a613106",
+      "size": 6646,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/6676dc3cf7d7e9e97bda74baab91e0333a613106"
+    },
+    {
+      "path": "data/original_data/cocitation/cora",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "329554b6197b829fe8aede7bbb81f9b0ada5a4d2",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/329554b6197b829fe8aede7bbb81f9b0ada5a4d2"
+    },
+    {
+      "path": "data/original_data/cocitation/cora/cora.cites",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d971e9d07e5f439864ac216697287faad7eb4406",
+      "size": 69928,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/d971e9d07e5f439864ac216697287faad7eb4406"
+    },
+    {
+      "path": "data/original_data/cocitation/cora/cora.content",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "23205398c433481a3b8c504e95e9f15adb47fe13",
+      "size": 7823427,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/23205398c433481a3b8c504e95e9f15adb47fe13"
+    },
+    {
+      "path": "data/original_data/cocitation/cora/features.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "12d051421aefb62a5de122fda4d8ae3bb1de496b",
+      "size": 404937,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/12d051421aefb62a5de122fda4d8ae3bb1de496b"
+    },
+    {
+      "path": "data/original_data/cocitation/cora/hypergraph.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b3e74fcc3c2f433d9986cd38bff8df6e15b70603",
+      "size": 101905,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/b3e74fcc3c2f433d9986cd38bff8df6e15b70603"
+    },
+    {
+      "path": "data/original_data/cocitation/cora/labels.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d2b96af714770960324be56efe695e985555d329",
+      "size": 5436,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/d2b96af714770960324be56efe695e985555d329"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "542bfb8a20b653b243fdd8a7150de3e45ce5a2b6",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/542bfb8a20b653b243fdd8a7150de3e45ce5a2b6"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/Pubmed-Diabetes.DIRECTED.cites.tab",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "477ea7c18c80fa404ce0177eddd460c4e845173d",
+      "size": 1639007,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/477ea7c18c80fa404ce0177eddd460c4e845173d"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/Pubmed-Diabetes.NODE.paper.tab",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "99c58208ab8447cee8504f7c9f832112b1fda1e7",
+      "size": 37071392,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/99c58208ab8447cee8504f7c9f832112b1fda1e7"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/features.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "d459b8b3cf6d96196c2973428c5219144e4c948e",
+      "size": 7983497,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/d459b8b3cf6d96196c2973428c5219144e4c948e"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/hypergraph.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "ae3a4f92e868b4e5d92f834a8bdaf01c3d068ba5",
+      "size": 301672,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/ae3a4f92e868b4e5d92f834a8bdaf01c3d068ba5"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/ind.pubmed.graph",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "76eb87e628a6b9d43fc31ea42c8c6c8f3e52b404",
+      "size": 471808,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/76eb87e628a6b9d43fc31ea42c8c6c8f3e52b404"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/labels.numpy",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "c7c3fa0d640a1256c73fec7e27932b9e71edc67a",
+      "size": 236732,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/c7c3fa0d640a1256c73fec7e27932b9e71edc67a"
+    },
+    {
+      "path": "data/original_data/cocitation/pubmed/labels.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "975e1eedc4a9364f10271687ac54cd95a88941ef",
+      "size": 374809,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/975e1eedc4a9364f10271687ac54cd95a88941ef"
+    },
+    {
+      "path": "data/original_data/mail",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "59c270b7847f839462421df3916433ef013b8d35",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/59c270b7847f839462421df3916433ef013b8d35"
+    },
+    {
+      "path": "data/original_data/mail/EU",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5d069d3a73789d88af14386b7d70ab56e7cfd7bf",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/5d069d3a73789d88af14386b7d70ab56e7cfd7bf"
+    },
+    {
+      "path": "data/original_data/mail/EU/weight_graph.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f7c4397d4ed733d0e859b346c78587c0edd3bfd2",
+      "size": 304111,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/f7c4397d4ed733d0e859b346c78587c0edd3bfd2"
+    },
+    {
+      "path": "data/original_data/mail/EU/weight_label.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "b3de707a941505ccec8d931741163af7f6281187",
+      "size": 1988,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/b3de707a941505ccec8d931741163af7f6281187"
+    },
+    {
+      "path": "data/original_data/mail/enroll",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5e86633da767beb29ba29a07f58f969b0897bd91",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/5e86633da767beb29ba29a07f58f969b0897bd91"
+    },
+    {
+      "path": "data/original_data/mail/enroll/weight_graph.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "39e1703bb912eed1354c21607ebc74505af58cf6",
+      "size": 20684,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/39e1703bb912eed1354c21607ebc74505af58cf6"
+    },
+    {
+      "path": "data/original_data/mail/enroll/weight_label.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "bc412775fa2a06a792df5bd3a28a867d694273d5",
+      "size": 302,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/bc412775fa2a06a792df5bd3a28a867d694273d5"
+    },
+    {
+      "path": "data/original_data/other",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "12448e4858391baeb89d23f130b503c0412110cf",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/12448e4858391baeb89d23f130b503c0412110cf"
+    },
+    {
+      "path": "data/original_data/other/.gitignore",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "04d38a6a5dcd6e406151f389fa006d9b8b53cdf2",
+      "size": 64,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/04d38a6a5dcd6e406151f389fa006d9b8b53cdf2"
+    },
+    {
+      "path": "data/original_data/protein",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "b90672988275f94c2fc065b52989c516739f9c4d",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/b90672988275f94c2fc065b52989c516739f9c4d"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-1",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "34669b3da297dbb77cb632db59cd31988325e3cb",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/34669b3da297dbb77cb632db59cd31988325e3cb"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-1/features_more_data.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "5054db7b59159feac15cce05f93c80994a752012",
+      "size": 26139778,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/5054db7b59159feac15cce05f93c80994a752012"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-1/hypergraph_more_class_more_data.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "dab2804d9f96828dea4fe44fed71e8928b7c152d",
+      "size": 1586995,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/dab2804d9f96828dea4fe44fed71e8928b7c152d"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-2",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "5fefca623a521a62a501150b2167473a3701fe06",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/5fefca623a521a62a501150b2167473a3701fe06"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-2/features_more_data.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "9ca4363cd5901536bcfd323663ffde6dff2fd31b",
+      "size": 979082,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/9ca4363cd5901536bcfd323663ffde6dff2fd31b"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-2/hypergraph_more_class_more_data.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "862eade1f6b729d776106905b7b03a7e3ad9a595",
+      "size": 151572,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/862eade1f6b729d776106905b7b03a7e3ad9a595"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-3",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "4438c64e4ad7aa6779edf47d3e1869edb72309f7",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/4438c64e4ad7aa6779edf47d3e1869edb72309f7"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-3/features_more_data.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "340ed58eaea1899468cf88f53f0835cf3cc69712",
+      "size": 174234,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/340ed58eaea1899468cf88f53f0835cf3cc69712"
+    },
+    {
+      "path": "data/original_data/protein/Dataset-3/hypergraph_more_class_more_data.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "32bd0fedc0ed257d96dc93642f6b43a4a42fda26",
+      "size": 22785,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/32bd0fedc0ed257d96dc93642f6b43a4a42fda26"
+    },
+    {
+      "path": "data/original_data/synthetic",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "ead3d52f8c9a08c4404e053dcd3d09ed276755bf",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/ead3d52f8c9a08c4404e053dcd3d09ed276755bf"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=10",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "dfe77bdfce7c4a43af9cb2557be2515d8fd692ed",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/dfe77bdfce7c4a43af9cb2557be2515d8fd692ed"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=10/hypergraph_directed.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "f8853b3cd3c69b587cb172f1ba3a7ae05b27c5fa",
+      "size": 44701,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/f8853b3cd3c69b587cb172f1ba3a7ae05b27c5fa"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=10/hypergraph_undirected.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "0b6c7015c35a104fea15c63f5a4e527d8f5b7efc",
+      "size": 44598,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/0b6c7015c35a104fea15c63f5a4e527d8f5b7efc"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=10/label.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46e88d6091c5e47f247c56feece0c94330bafa22",
+      "size": 4127,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/46e88d6091c5e47f247c56feece0c94330bafa22"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=30",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "d29f56aba8bca4ede9f5f5ca1fc646350974b057",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/d29f56aba8bca4ede9f5f5ca1fc646350974b057"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=30/hypergraph_directed.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "e6b56429a59dc64cfd7c2e1689c0ff1dee12a97b",
+      "size": 95127,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/e6b56429a59dc64cfd7c2e1689c0ff1dee12a97b"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=30/hypergraph_undirected.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "87b5d70ec6810b13bbde3292b5d43bc1e3810f57",
+      "size": 95268,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/87b5d70ec6810b13bbde3292b5d43bc1e3810f57"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=30/label.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46e88d6091c5e47f247c56feece0c94330bafa22",
+      "size": 4127,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/46e88d6091c5e47f247c56feece0c94330bafa22"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=50",
+      "mode": "040000",
+      "type": "tree",
+      "sha": "0a003f2f3454635d16de0b216a610cff8d3ebbe4",
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/trees/0a003f2f3454635d16de0b216a610cff8d3ebbe4"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=50/hypergraph_directed.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "917eb9ccdd56e48ef7b67cec37f54ce9dfd6b35c",
+      "size": 147635,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/917eb9ccdd56e48ef7b67cec37f54ce9dfd6b35c"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=50/hypergraph_undirected.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "6183d7e91ac9199045d3c86eb9b3db136b7c3727",
+      "size": 148015,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/6183d7e91ac9199045d3c86eb9b3db136b7c3727"
+    },
+    {
+      "path": "data/original_data/synthetic/node:500_subset-min=3_subset-max=10_N-intra=30_N-inter=50/label.pickle",
+      "mode": "100644",
+      "type": "blob",
+      "sha": "46e88d6091c5e47f247c56feece0c94330bafa22",
+      "size": 4127,
+      "url": "https://api.github.com/repos/EmaMule/DirectionalSheafHypergraphs/git/blobs/46e88d6091c5e47f247c56feece0c94330bafa22"
+    }
+  ],
+  "truncated": false
+}

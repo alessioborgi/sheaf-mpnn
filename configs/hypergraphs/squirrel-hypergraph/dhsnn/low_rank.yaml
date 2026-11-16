@@ -1,0 +1,94 @@
+# sheaf sweep --yaml-path configs/hypergraphs/squirrel-hypergraph/dhsnn/low_rank.yaml --preset squirrel-hypergraph
+model: dhsnn
+dataset:
+  name: squirrel-hypergraph
+  root: data/hypergraphs
+  directed: true
+search_space:
+  variant:
+    type: categorical
+    choices:
+    - low_rank
+  stalk_dim:
+    type: categorical
+    choices:
+    - 2
+    - 4
+    - 8
+  hidden_dim:
+    type: categorical
+    choices:
+    - 16
+    - 32
+    - 64
+  num_layers:
+    type: int
+    low: 1
+    high: 6
+  input_dropout:
+    type: float
+    low: 0.0
+    high: 0.8
+  dropout:
+    type: categorical
+    choices:
+    - 0.0
+    - 0.2
+    - 0.5
+  lr:
+    type: float
+    low: 0.001
+    high: 0.02
+    log: true
+  weight_decay:
+    type: categorical
+    choices:
+    - 0.0
+    - 5.0e-05
+    - 0.0005
+  dhsnn_q:
+    type: categorical
+    choices:
+    - 0.0
+    - 0.125
+    - 0.25
+    - 0.5
+  dhsnn_dynamic_sheaf:
+    type: categorical
+    choices:
+    - false
+    - true
+  dhsnn_prediction:
+    type: categorical
+    choices:
+    - MLP_var1
+    - MLP_var2
+  dhsnn_map_activation:
+    type: categorical
+    choices:
+    - sigmoid
+    - tanh
+  dhsnn_left_projection:
+    type: categorical
+    choices:
+    - false
+    - true
+  dhsnn_classifier_hidden:
+    type: categorical
+    choices:
+    - 32
+    - 64
+    - 128
+  rank:
+    type: categorical
+    choices:
+    - 1
+    - 2
+config:
+  n_trials: 250
+  budget_states: finished
+  n_seeds_per_trial: 10
+  seed: 0
+  cuda: 0
+  study_name: squirrel-hypergraph-dhsnn-low_rank
+  storage: sqlite:///runs/hypergraph-sweeps/squirrel-hypergraph-dhsnn-low_rank.db

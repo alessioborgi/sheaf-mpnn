@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Sheaf-MPNN: a PyTorch Geometric library and benchmark suite for Sheaf Neural Networks as message passing"
 readme = "README.md"
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = ["LICENSE", "third_party/dshn/LICENSE", "third_party/dshn/NOTICE"]
 authors = [
     { name = "Alessio Borgi" },
     { name = "Mario Severino" },
@@ -183,6 +183,7 @@ include = [
     "LICENSE",
     "CHANGELOG.md",
     "CITATION.cff",
+    "third_party/dshn",
     "pyproject.toml",
 ]
 exclude = ["src/exp/data/**", "**/__pycache__"]

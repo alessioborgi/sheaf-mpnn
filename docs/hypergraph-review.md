@@ -16,17 +16,7 @@ establish mathematical correctness.
 
 See [HSNN usage](hsnn.md), [DHSNN usage](dhsnn.md), and the
 [DSHN reference correspondence report](dhsnn-official-audit.md).
-The audit report describes earlier validation; its historical measurements
-have not all been repeated during preparation of this review branch.
-
-## Current validation
-
-The six core convolution/layer/model test files completed with exit code 0
-on Windows. The contributor also reports that all datasets run on the server
-without runtime errors; those server runs were not independently repeated
-during preparation of this review branch.
-Full CI, integration tests, documentation and type checks have not been rerun
-as part of this branch preparation.
+## Running the core tests
 
 ```bash
 python -m pytest --no-cov tests/test_hypergraph_sheaf_conv.py tests/test_directed_hypergraph_sheaf_conv.py tests/nsd/test_hsnn_layers.py tests/nsd/test_hsnn_model.py tests/nsd/test_dhsnn_layers.py tests/nsd/test_dhsnn_model.py
